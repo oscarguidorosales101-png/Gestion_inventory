@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { ROLES } from '../../constants/roles';
-import { formatFecha, formatNumero } from '../../utils/formatters';
+import { formatFecha, formatNumero, formatTipoAlerta, formatSeveridadAlerta, formatEstadoAlerta } from '../../utils/formatters';
 import { AlertTriangle, CheckCircle, RefreshCw, Filter, ShieldAlert } from 'lucide-react';
 import { ResolverAlertaModal } from './ResolverAlertaModal';
 
@@ -107,20 +107,20 @@ export const AlertasList = () => {
                   <tr key={a.id}>
                     <td style={{ fontWeight: 600 }}>ALT-#{a.id}</td>
                     <td>{formatFecha(a.fecha_alerta || a.created_at, true)}</td>
-                    <td><span className="badge badge-gray">{a.tipo}</span></td>
+                    <td><span className="badge badge-gray">{formatTipoAlerta(a.tipo)}</span></td>
                     <td>
                       <span className={`badge ${
                         a.severidad === 'CRITICA' || a.severidad === 'ALTA' ? 'badge-critico' :
                         a.severidad === 'MEDIA' ? 'badge-reorden' : 'badge-normal'
                       }`}>
-                        {a.severidad}
+                        {formatSeveridadAlerta(a.severidad)}
                       </span>
                     </td>
                     <td style={{ fontWeight: 600 }}>{a.material_nombre} ({a.material_sku})</td>
                     <td style={{ maxWidth: '300px' }}>{a.mensaje}</td>
                     <td>
                       <span className={`badge ${a.estado === 'ACTIVA' ? 'badge-critico' : 'badge-normal'}`}>
-                        {a.estado}
+                        {formatEstadoAlerta(a.estado)}
                       </span>
                     </td>
                     <td style={{ fontSize: '0.8rem', color: '#64748B' }}>

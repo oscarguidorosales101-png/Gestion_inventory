@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { formatTipoUbicacion } from '../../utils/formatters';
 import { History, X, AlertTriangle } from 'lucide-react';
 
 export const MovimientoModal = ({ onClose, onSuccess }) => {
@@ -115,7 +116,7 @@ export const MovimientoModal = ({ onClose, onSuccess }) => {
                 <label className="form-label">Bodega Origen (Salida de Existencias)</label>
                 <select className="form-select" value={ubicacionOrigenId} onChange={(e) => setUbicacionOrigenId(e.target.value)}>
                   {ubicaciones.map((u) => (
-                    <option key={u.id} value={u.id}>{u.nombre} ({u.tipo})</option>
+                    <option key={u.id} value={u.id}>{u.nombre} ({formatTipoUbicacion(u.tipo)})</option>
                   ))}
                 </select>
               </div>
@@ -126,7 +127,7 @@ export const MovimientoModal = ({ onClose, onSuccess }) => {
                 <label className="form-label">Bodega Destino (Entrada de Existencias)</label>
                 <select className="form-select" value={ubicacionDestinoId} onChange={(e) => setUbicacionDestinoId(e.target.value)}>
                   {ubicaciones.map((u) => (
-                    <option key={u.id} value={u.id}>{u.nombre} ({u.tipo})</option>
+                    <option key={u.id} value={u.id}>{u.nombre} ({formatTipoUbicacion(u.tipo)})</option>
                   ))}
                 </select>
               </div>

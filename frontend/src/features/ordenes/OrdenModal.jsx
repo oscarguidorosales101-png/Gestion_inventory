@@ -81,10 +81,10 @@ export const OrdenModal = ({ onClose, onSuccess }) => {
 
   const nivelRequerido =
     totalCalculado > 25000000
-      ? 'NIVEL_3 (Gerencia General / Admin)'
+      ? 'Nivel 3 — Gerencia General / Administrador'
       : totalCalculado >= 5000000
-      ? 'NIVEL_2 (Jefatura de Operaciones)'
-      : 'NIVEL_1 (Encargado de Compras)';
+      ? 'Nivel 2 — Jefatura de Operaciones'
+      : 'Nivel 1 — Encargado de Compras';
 
   const handleSubmit = async (e) => {
     e.preventDefault();

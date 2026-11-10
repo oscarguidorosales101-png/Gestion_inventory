@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { ROLES } from '../../constants/roles';
-import { formatMoneda, formatFecha } from '../../utils/formatters';
+import { formatMoneda, formatFecha, formatEstadoOrden, formatNivelAprobacion } from '../../utils/formatters';
 import {
   ShoppingCart,
   Plus,
@@ -188,14 +188,14 @@ export const OrdenesList = () => {
                       <td>{o.proveedor_nombre}</td>
                       <td style={{ fontSize: '0.8rem' }}>{o.creador_nombre}</td>
                       <td style={{ fontWeight: 700 }}>{formatMoneda(o.total_crc)}</td>
-                      <td><span className="badge badge-gray">{o.nivel_aprobacion_requerido}</span></td>
+                      <td><span className="badge badge-gray">{formatNivelAprobacion(o.nivel_aprobacion_requerido)}</span></td>
                       <td>
                         <span className={`badge ${
                           o.estado === 'APROBADA' || o.estado === 'RECIBIDA_TOTAL' ? 'badge-normal' :
                           o.estado === 'PENDIENTE_APROBACION' ? 'badge-reorden' :
                           o.estado === 'RECHAZADA' || o.estado === 'CANCELADA' ? 'badge-critico' : 'badge-blue'
                         }`}>
-                          {o.estado}
+                          {formatEstadoOrden(o.estado)}
                         </span>
                       </td>
                       <td>
@@ -206,7 +206,7 @@ export const OrdenesList = () => {
                             onClick={() => setSelectedDuplicado(o)}
                             title="Ver detalles de sospecha de duplicidad"
                           >
-                            {o.estado_revision_duplicado === 'PENDIENTE_REVISION' ? 'Sospechoso' : 'Revisado'}
+                            {o.estado_revision_duplicado === 'PENDIENTE_REVISION' ? 'Pendiente Revisión' : 'Revisado'}
                           </span>
                         ) : (
                           <span className="badge badge-gray" style={{ opacity: 0.6 }}>Normal</span>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { formatMoneda, formatFecha, formatNumero, getEstadoStockBadgeClass } from '../utils/formatters';
+import { formatMoneda, formatFecha, formatNumero, getEstadoStockBadgeClass, formatEstadoStock } from '../utils/formatters';
 import {
   Boxes,
   Coins,
@@ -239,7 +239,7 @@ export const InventarioDashboard = ({ onNavigate }) => {
                     <td>{formatNumero(mat.stock_minimo)} {mat.unidad_medida}</td>
                     <td>
                       <span className={`badge ${getEstadoStockBadgeClass(mat.estado_stock)}`}>
-                        {mat.estado_stock}
+                        {formatEstadoStock(mat.estado_stock)}
                       </span>
                     </td>
                   </tr>

@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { formatMoneda, formatFecha } from '../utils/formatters';
+import {
+  formatMoneda,
+  formatFecha,
+  formatAmbitoRegla,
+  formatClaveRegla,
+  formatAuditoriaAccion,
+  formatAuditoriaTipoOperacion,
+  formatAuditoriaEntidad,
+} from '../utils/formatters';
 import {
   Package,
   Coins,
@@ -192,8 +200,8 @@ export const AdminDashboard = ({ onNavigate }) => {
                 data.reglasResumen.map((regla) => (
                   <div key={regla.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F1F5F9', paddingBottom: '8px' }}>
                     <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>{regla.clave}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Ámbito: {regla.ambito}</div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0F172A' }}>{formatClaveRegla(regla.clave)}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Ámbito: {formatAmbitoRegla(regla.ambito)}</div>
                     </div>
                     <span className="badge badge-gray">
                       {regla.valor_numerico !== null ? regla.valor_numerico : regla.valor_texto}
@@ -239,9 +247,9 @@ export const AdminDashboard = ({ onNavigate }) => {
                   <tr key={log.id}>
                     <td>{formatFecha(log.created_at, true)}</td>
                     <td style={{ fontWeight: 600 }}>{log.usuario_nombre || 'Sistema'}</td>
-                    <td><span className="badge badge-gray">{log.accion}</span></td>
-                    <td>{log.tipo_operacion}</td>
-                    <td>{log.entidad_afectada} (ID #{log.registro_afectado_id})</td>
+                    <td><span className="badge badge-gray">{formatAuditoriaAccion(log.accion)}</span></td>
+                    <td><span className="badge badge-normal">{formatAuditoriaTipoOperacion(log.tipo_operacion)}</span></td>
+                    <td>{formatAuditoriaEntidad(log.entidad_afectada)} (#{log.registro_afectado_id})</td>
                     <td style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {log.motivo || 'Operación validada por el sistema'}
                     </td>

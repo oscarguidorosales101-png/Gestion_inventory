@@ -27,6 +27,9 @@ export const AuditoriaPayloadModal = ({ payloadData, onClose }) => {
         </div>
 
         <div className="modal-body">
+          <p style={{ fontSize: '0.85rem', color: '#64748B', marginBottom: '12px' }}>
+            Instantánea inmutable capturada durante el evento en la bitácora de auditoría:
+          </p>
           <pre
             style={{
               backgroundColor: '#052E16',

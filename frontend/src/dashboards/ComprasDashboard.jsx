@@ -113,7 +113,7 @@ export const ComprasDashboard = ({ onNavigate }) => {
           <div style={{ flex: 1 }}>
             <strong>Atención: Se han detectado {data.duplicadosPendientes.length} órdenes con posible duplicidad.</strong>
             <div>
-              El sistema de control preventivo identificó coincidencias de proveedor, monto y líneas en una ventana de 7 días. Requieren revisión humana antes de permitir aprobación.
+              El sistema de control preventivo identificó coincidencias de proveedor, monto y líneas en una ventana de 7 días. Requieren revisión manual antes de permitir aprobación.
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@ export const ComprasDashboard = ({ onNavigate }) => {
             <div className="kpi-value" style={{ color: data.duplicadosPendientes?.length > 0 ? '#DC2626' : '#15803D' }}>
               {data.duplicadosPendientes?.length || 0}
             </div>
-            <div className="kpi-sub">Revisiones humanas pendientes</div>
+            <div className="kpi-sub">Revisiones manuales pendientes</div>
           </div>
           <div className="kpi-icon-wrap" style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}>
             <AlertTriangle size={22} />
@@ -170,14 +170,14 @@ export const ComprasDashboard = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Sección: Órdenes con Posible Duplicado (Revisión Humana Obligatoria) */}
+      {/* Sección: Órdenes con Posible Duplicado (Revisión Manual Obligatoria) */}
       {data.duplicadosPendientes && data.duplicadosPendientes.length > 0 && (
         <div className="card-table">
           <div className="card-table-header" style={{ backgroundColor: '#FFFBEB' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <AlertCircle size={18} color="#B45309" />
               <div className="card-table-title" style={{ color: '#92400E' }}>
-                Órdenes Bloqueadas por Sospecha de Duplicidad (Requiere Resolución Humana)
+                Órdenes Bloqueadas por Sospecha de Duplicidad (Requiere Resolución Manual)
               </div>
             </div>
           </div>
@@ -281,7 +281,7 @@ export const ComprasDashboard = ({ onNavigate }) => {
               <div style={{ padding: '10px 14px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '0.85rem' }}>
                   <span>Nivel 1 — Monto Menor</span>
-                  <span className="badge badge-normal">&lt; ₡5.000.000</span>
+                  <span className="badge badge-normal">Hasta ₡5.000.000</span>
                 </div>
                 <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px' }}>
                   Aprobación por Encargado de Compras. Aplica regla estricta: un usuario no puede aprobar su propia orden.
@@ -301,7 +301,7 @@ export const ComprasDashboard = ({ onNavigate }) => {
               <div style={{ padding: '10px 14px', borderRadius: '8px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '0.85rem' }}>
                   <span>Nivel 3 — Monto Mayor</span>
-                  <span className="badge badge-critico">&gt; ₡25.000.000</span>
+                  <span className="badge badge-critico">Mayor a ₡25.000.000</span>
                 </div>
                 <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '4px' }}>
                   Aprobación exclusiva por Gerencia / Administrador General.

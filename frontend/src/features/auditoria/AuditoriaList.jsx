@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { formatFecha } from '../../utils/formatters';
+import { formatFecha, formatAuditoriaAccion, formatAuditoriaTipoOperacion, formatAuditoriaEntidad } from '../../utils/formatters';
 import { ShieldCheck, Search, RefreshCw, Eye, FileJson } from 'lucide-react';
 import { AuditoriaPayloadModal } from './AuditoriaPayloadModal';
 
@@ -87,9 +87,9 @@ export const AuditoriaList = () => {
                     <td style={{ fontWeight: 600 }}>#{log.id}</td>
                     <td>{formatFecha(log.created_at, true)}</td>
                     <td style={{ fontWeight: 600 }}>{log.usuario_nombre || 'Sistema'}</td>
-                    <td><span className="badge badge-gray">{log.accion}</span></td>
-                    <td>{log.tipo_operacion}</td>
-                    <td>{log.entidad_afectada} (ID #{log.registro_afectado_id})</td>
+                    <td><span className="badge badge-gray">{formatAuditoriaAccion(log.accion)}</span></td>
+                    <td><span className="badge badge-normal">{formatAuditoriaTipoOperacion(log.tipo_operacion)}</span></td>
+                    <td>{formatAuditoriaEntidad(log.entidad_afectada)} (#{log.registro_afectado_id})</td>
                     <td style={{ maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {log.motivo || '-'}
                     </td>
@@ -97,7 +97,7 @@ export const AuditoriaList = () => {
                       {log.payload ? (
                         <button
                           className="btn btn-secondary btn-sm"
-                          onClick={() => setSelectedPayload({ title: `Auditoría #${log.id} — ${log.accion}`, data: log.payload })}
+                          onClick={() => setSelectedPayload({ title: `Auditoría #${log.id} — ${formatAuditoriaAccion(log.accion)}`, data: log.payload })}
                           title="Ver detalle del registro"
                         >
                           <FileJson size={13} />

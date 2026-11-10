@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { formatMoneda, formatNumero } from '../../utils/formatters';
+import { formatMoneda, formatNumero, formatEstadoOrden, formatTipoUbicacion } from '../../utils/formatters';
 import { ArrowDownToLine, X, AlertTriangle, CheckCircle } from 'lucide-react';
 
 export const RecepcionModal = ({ onClose, onSuccess }) => {
@@ -135,7 +135,7 @@ export const RecepcionModal = ({ onClose, onSuccess }) => {
                   <option value="">-- Seleccionar Orden --</option>
                   {ordenes.map((o) => (
                     <option key={o.id} value={o.id}>
-                      {o.numero_orden} — {o.proveedor_nombre} ({o.estado})
+                      {o.numero_orden} — {o.proveedor_nombre} ({formatEstadoOrden(o.estado)})
                     </option>
                   ))}
                 </select>
@@ -151,7 +151,7 @@ export const RecepcionModal = ({ onClose, onSuccess }) => {
                 >
                   {ubicaciones.map((ub) => (
                     <option key={ub.id} value={ub.id}>
-                      {ub.nombre} ({ub.tipo})
+                      {ub.nombre} ({formatTipoUbicacion(ub.tipo)})
                     </option>
                   ))}
                 </select>

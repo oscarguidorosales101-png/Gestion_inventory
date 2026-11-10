@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { formatMoneda, formatFecha, formatNumero } from '../../utils/formatters';
+import { formatMoneda, formatFecha, formatNumero, formatEstadoOrden } from '../../utils/formatters';
 import { ShoppingCart, X, Activity } from 'lucide-react';
 
 export const OrdenDetalleModal = ({ ordenId, onClose }) => {
@@ -54,7 +54,15 @@ export const OrdenDetalleModal = ({ ordenId, onClose }) => {
                 </div>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: '#64748B' }}>ESTADO</div>
-                  <div><span className="badge badge-normal">{orden.estado}</span></div>
+                  <div>
+                    <span className={`badge ${
+                      orden.estado === 'APROBADA' || orden.estado === 'RECIBIDA_TOTAL' ? 'badge-normal' :
+                      orden.estado === 'PENDIENTE_APROBACION' ? 'badge-reorden' :
+                      orden.estado === 'RECHAZADA' || orden.estado === 'CANCELADA' ? 'badge-critico' : 'badge-blue'
+                    }`}>
+                      {formatEstadoOrden(orden.estado)}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: '#64748B' }}>CREADO POR</div>

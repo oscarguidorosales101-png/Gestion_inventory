@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { Sliders, Edit2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { formatAmbitoRegla, formatClaveRegla } from '../../utils/formatters';
 import { ReglaModal } from './ReglaModal';
 
 export const ReglasList = () => {
@@ -68,8 +69,11 @@ export const ReglasList = () => {
               ) : reglas.length > 0 ? (
                 reglas.map((r) => (
                   <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.clave}</td>
-                    <td><span className="badge badge-gray">{r.ambito}</span></td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#0F172A' }}>{formatClaveRegla(r.clave)}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B', fontFamily: 'monospace' }}>{r.clave}</div>
+                    </td>
+                    <td><span className="badge badge-gray">{formatAmbitoRegla(r.ambito)}</span></td>
                     <td style={{ fontWeight: 700, color: '#15803D' }}>
                       {r.valor_numerico !== null ? r.valor_numerico : '-'}
                     </td>

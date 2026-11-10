@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { formatNumero } from '../../utils/formatters';
+import { formatNumero, formatTipoUbicacion } from '../../utils/formatters';
 import { MapPin, X, Activity } from 'lucide-react';
 
 export const StockPorUbicacionModal = ({ material, onClose }) => {
@@ -58,7 +58,7 @@ export const StockPorUbicacionModal = ({ material, onClose }) => {
                 {ubicaciones.map((ub) => (
                   <tr key={ub.ubicacion_id}>
                     <td style={{ fontWeight: 600 }}>{ub.ubicacion_nombre}</td>
-                    <td><span className="badge badge-gray">{ub.tipo}</span></td>
+                    <td><span className="badge badge-gray">{formatTipoUbicacion(ub.tipo)}</span></td>
                     <td>{ub.responsable}</td>
                     <td style={{ fontWeight: 700, color: '#15803D' }}>
                       {formatNumero(ub.stock_ubicacion ?? ub.existencia_actual ?? ub.stock_actual ?? 0)} {material.unidad_medida}

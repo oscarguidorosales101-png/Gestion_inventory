@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { formatClaveRegla } from '../../utils/formatters';
 import { Sliders, X, AlertTriangle } from 'lucide-react';
 
 export const ReglaModal = ({ regla, onClose, onSuccess }) => {
@@ -38,7 +39,7 @@ export const ReglaModal = ({ regla, onClose, onSuccess }) => {
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sliders size={20} color="#15803D" />
-            <span className="modal-title">Modificar Regla — {regla?.clave}</span>
+            <span className="modal-title">Modificar Regla — {formatClaveRegla(regla?.clave)}</span>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={onClose}>
             <X size={16} />

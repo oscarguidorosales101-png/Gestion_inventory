@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { formatMoneda, formatFecha, formatNumero, getEstadoStockBadgeClass } from '../utils/formatters';
+import { formatMoneda, formatFecha, formatNumero, getEstadoStockBadgeClass, formatTipoMovimiento } from '../utils/formatters';
 import {
   Boxes,
   Coins,
@@ -149,7 +149,7 @@ export const ConsultaDashboard = () => {
                     <td>{formatFecha(mov.fecha_movimiento, true)}</td>
                     <td>
                       <span className={`badge ${mov.tipo === 'ENTRADA' ? 'badge-normal' : mov.tipo === 'SALIDA' ? 'badge-critico' : 'badge-blue'}`}>
-                        {mov.tipo}
+                        {formatTipoMovimiento(mov.tipo)}
                       </span>
                     </td>
                     <td style={{ fontWeight: 600 }}>{mov.material_nombre} ({mov.material_sku})</td>

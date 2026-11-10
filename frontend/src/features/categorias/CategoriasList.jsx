@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { ROLES } from '../../constants/roles';
+import { formatTipoGasto } from '../../utils/formatters';
 import { Tags, Plus, Edit2, RefreshCw } from 'lucide-react';
 import { CategoriaModal } from './CategoriaModal';
 
@@ -86,7 +87,7 @@ export const CategoriasList = () => {
                   <tr key={c.id}>
                     <td style={{ fontWeight: 600 }}>{c.codigo}</td>
                     <td>{c.nombre}</td>
-                    <td><span className="badge badge-gray">{c.tipo_gasto}</span></td>
+                    <td><span className="badge badge-gray">{formatTipoGasto(c.tipo_gasto)}</span></td>
                     <td style={{ color: '#64748B' }}>{c.descripcion || '-'}</td>
                     <td>
                       <span className={`badge ${c.activo ? 'badge-normal' : 'badge-critico'}`}>

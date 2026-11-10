@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { formatMoneda, formatNumero, getEstadoStockBadgeClass } from '../../utils/formatters';
+import { formatMoneda, formatNumero, getEstadoStockBadgeClass, formatEstadoStock } from '../../utils/formatters';
 import { Boxes, MapPin, Search, RefreshCw, AlertTriangle, Layers } from 'lucide-react';
 import { StockPorUbicacionModal } from './StockPorUbicacionModal';
 
@@ -136,7 +136,7 @@ export const InventarioList = () => {
                     </td>
                     <td>
                       <span className={`badge ${getEstadoStockBadgeClass(m.estado_stock)}`}>
-                        {m.estado_stock}
+                        {formatEstadoStock(m.estado_stock)}
                       </span>
                     </td>
                     <td>

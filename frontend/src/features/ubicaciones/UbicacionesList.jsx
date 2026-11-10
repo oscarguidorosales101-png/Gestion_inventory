@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { ROLES } from '../../constants/roles';
+import { formatTipoUbicacion } from '../../utils/formatters';
 import { MapPin, Plus, Edit2, RefreshCw } from 'lucide-react';
 import { UbicacionModal } from './UbicacionModal';
 
@@ -87,7 +88,7 @@ export const UbicacionesList = () => {
                   <tr key={u.id}>
                     <td style={{ fontWeight: 600 }}>{u.codigo}</td>
                     <td>{u.nombre}</td>
-                    <td><span className="badge badge-gray">{u.tipo}</span></td>
+                    <td><span className="badge badge-gray">{formatTipoUbicacion(u.tipo)}</span></td>
                     <td>{u.responsable}</td>
                     <td>{u.direccion}</td>
                     <td>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import { ROLES } from '../../constants/roles';
-import { formatMoneda, formatFecha, formatNumero } from '../../utils/formatters';
+import { formatMoneda, formatFecha, formatNumero, formatTipoMovimiento } from '../../utils/formatters';
 import { History, Plus, RefreshCw, Search, ArrowUpRight, ArrowDownLeft, SlidersHorizontal } from 'lucide-react';
 import { MovimientoModal } from './MovimientoModal';
 
@@ -103,7 +103,7 @@ export const MovimientosLedger = () => {
                         m.tipo === 'ENTRADA' ? 'badge-normal' :
                         m.tipo === 'SALIDA' ? 'badge-critico' : 'badge-blue'
                       }`}>
-                        {m.tipo}
+                        {formatTipoMovimiento(m.tipo)}
                       </span>
                     </td>
                     <td style={{ fontWeight: 600 }}>{m.material_nombre} ({m.material_sku})</td>
