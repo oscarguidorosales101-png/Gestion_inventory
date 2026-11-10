@@ -1,6 +1,7 @@
 import * as outboxService from '../services/outbox.service.js';
 import * as inventarioService from '../services/inventario.service.js';
 import * as alertaService from '../services/alerta.service.js';
+import * as ordenService from '../services/orden.service.js';
 import { registrarAuditoria } from '../services/auditoria.service.js';
 import { query } from '../config/db.js';
 import { successResponse, paginatedResponse } from '../utils/response.js';
@@ -124,4 +125,25 @@ export async function incidenciaWorkflow(req, res, next) {
     next(err);
   }
 }
+
+export async function guardarAnalisisDuplicadoIA(req, res, next) {
+  try {
+    const { id } = req.params;
+    const resultado = await ordenService.guardarAnalisisDuplicadoIA(id, req.body);
+    return successResponse(res, resultado, 'Analisis de duplicidad IA guardado correctamente');
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function evaluarDuplicadoIA(req, res, next) {
+  try {
+    const { id } = req.params;
+    const resultado = await ordenService.ejecutarAnalisisDuplicadoIA(id);
+    return successResponse(res, resultado, 'Analisis de duplicidad IA ejecutado exitosamente');
+  } catch (err) {
+    next(err);
+  }
+}
+
 

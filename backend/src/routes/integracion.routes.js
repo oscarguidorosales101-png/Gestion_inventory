@@ -19,5 +19,7 @@ router.post('/evaluar-alerta', integracionController.evaluarAlertaStockAutomatiz
 router.post('/alertas/reevaluar', integracionController.reevaluarAlertas);
 router.get('/auditoria/duplicados-pendientes', integracionController.duplicadosPendientes);
 router.post('/auditoria/incidencia-workflow', integracionController.incidenciaWorkflow);
+router.post('/ordenes/:id/analisis-duplicado', integracionController.guardarAnalisisDuplicadoIA);
+router.post('/ordenes/:id/evaluar-duplicado-ia', integracionController.evaluarDuplicadoIA);
 
 export default router;

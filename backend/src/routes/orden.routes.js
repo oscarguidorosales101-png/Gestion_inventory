@@ -73,5 +73,14 @@ router.post(
   recepcionController.registrarRecepcion
 );
 
+// Analisis de duplicidad asistido por Google Gemini IA
+router.get('/:id/analisis-ia', authenticate, ordenController.obtenerAnalisisIA);
+router.post(
+  '/:id/analizar-ia',
+  authenticate,
+  requireRole('ADMINISTRADOR', 'COMPRAS'),
+  ordenController.analizarIA
+);
+
 export default router;
 

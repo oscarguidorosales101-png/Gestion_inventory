@@ -50,7 +50,7 @@
         "conditions": {
           "number": [
             {
-              "value1": "={{ $json.data?.total || 0 }}",
+              "value1": "={{ $json.data?.total_duplicados || $json.data?.total || 0 }}",
               "operation": "larger",
               "value2": 0
             }
@@ -68,7 +68,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const pendientes = $input.item.json.data?.ordenes || [];\nreturn {\n  timestamp: new Date().toISOString(),\n  total_pendientes: pendientes.length,\n  casos: pendientes.map(o => ({\n    id: o.id,\n    numero_orden: o.numero_orden,\n    proveedor: o.proveedor_nombre,\n    total_crc: o.total_crc,\n    orden_similar_id: o.orden_similar_id\n  })),\n  mensaje: `Atencion: Se encontraron ${pendientes.length} orden(es) de compra con sospecha de duplicado pendiente de revision.`\n};"
+        "jsCode": "const pendientes = $input.item.json.data?.items || $input.item.json.data?.ordenes || [];\nreturn {\n  timestamp: new Date().toISOString(),\n  total_pendientes: pendientes.length,\n  casos: pendientes.map(o => ({\n    id: o.id,\n    numero_orden: o.numero_orden,\n    proveedor: o.proveedor_nombre,\n    total_crc: o.total_crc,\n    orden_similar_id: o.orden_similar_id\n  })),\n  mensaje: `Atencion: Se encontraron ${pendientes.length} orden(es) de compra con sospecha de duplicado pendiente de revision.`\n};"
       },
       "id": "node-formato-alerta-dup",
       "name": "Consolidar Informe Duplicados",

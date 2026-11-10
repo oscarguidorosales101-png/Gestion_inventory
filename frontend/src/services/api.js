@@ -205,6 +205,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ resolucion, motivo }),
       }),
+    getAnalisisIA: (id) => apiFetch(`/ordenes/${id}/analisis-ia`),
+    analizarIA: (id) =>
+      apiFetch(`/ordenes/${id}/analizar-ia`, {
+        method: 'POST',
+      }),
     registrarRecepcion: (id, data) =>
       apiFetch(`/ordenes/${id}/recepciones`, {
         method: 'POST',

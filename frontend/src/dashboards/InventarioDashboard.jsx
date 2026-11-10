@@ -31,21 +31,25 @@ export const InventarioDashboard = ({ onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const cargarDatos = async () => {
+  const cargarDatos = async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       setError(null);
       const res = await api.dashboard.getInventarioDashboard();
       setData(res.data);
     } catch (err) {
       setError(err?.message || 'Error al cargar métricas del Tablero de Inventario.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   };
 
   useEffect(() => {
     cargarDatos();
+    const interval = setInterval(() => {
+      cargarDatos(true);
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {

@@ -75,31 +75,36 @@ export async function obtenerMetricasDashboard({ fecha_desde, fecha_hasta, categ
     WHERE estado IN ('ACTIVA', 'EN_REVISION');
   `);
 
-  // 5. Ultimos 6 movimientos registrados
+  // 5. Ultimos movimientos registrados con nombres completos para Kardex y Auditoría
   const movimientosRecientes = await query(`
     SELECT
       m.id, m.tipo, m.cantidad, m.fecha_movimiento,
-      mat.codigo AS material_codigo, mat.nombre AS material_nombre, mat.unidad_medida,
-      uo.codigo AS origen_codigo, ud.codigo AS destino_codigo,
-      u.nombre AS usuario_nombre
+      m.motivo, m.referencia,
+      mat.codigo AS material_codigo, mat.codigo AS material_sku,
+      mat.nombre AS material_nombre, mat.unidad_medida,
+      uo.id AS origen_id, uo.codigo AS origen_codigo, uo.nombre AS origen_nombre,
+      ud.id AS destino_id, ud.codigo AS destino_codigo, ud.nombre AS destino_nombre,
+      u.nombre AS usuario_nombre, u.nombre AS responsable_nombre
     FROM movimientos m
     JOIN materiales mat ON mat.id = m.material_id
     LEFT JOIN ubicaciones uo ON uo.id = m.ubicacion_origen_id
     LEFT JOIN ubicaciones ud ON ud.id = m.ubicacion_destino_id
     LEFT JOIN usuarios u ON u.id = m.usuario_id
     ORDER BY m.fecha_movimiento DESC, m.id DESC
-    LIMIT 6;
+    LIMIT 10;
   `);
 
-  // 6. Ultimas 6 entradas de auditoria
+  // 6. Ultimas entradas de auditoria con created_at y payload unificados
   const actividadReciente = await query(`
     SELECT
-      a.id, a.accion, a.tipo_operacion, a.entidad_afectada, a.motivo, a.fecha_hora,
+      a.id, a.accion, a.tipo_operacion, a.entidad_afectada, a.registro_afectado_id,
+      a.motivo, a.fecha_hora, a.fecha_hora AS created_at,
+      COALESCE(a.datos_nuevos, a.datos_previos) AS payload,
       u.nombre AS usuario_nombre, u.rol AS usuario_rol
     FROM auditoria a
     LEFT JOIN usuarios u ON u.id = a.usuario_id
     ORDER BY a.fecha_hora DESC, a.id DESC
-    LIMIT 6;
+    LIMIT 10;
   `);
 
   // 7. Distribucion por categoria
@@ -127,31 +132,59 @@ export async function obtenerMetricasDashboard({ fecha_desde, fecha_hasta, categ
     ORDER BY total_materiales DESC;
   `);
 
-  // 8. Ocupacion por ubicacion
+  // 8. Ocupacion consolidada por ubicacion (sin cross joins, con calculo exacto del libro mayor)
   const ubicacionesDistribucion = await query(`
     SELECT
-      u.id, u.codigo, u.nombre, u.tipo,
-      COUNT(DISTINCT m.id) AS items_almacenados,
-      COALESCE(SUM(
-        CASE
-          WHEN mov.ubicacion_destino_id = u.id AND mov.tipo IN ('ENTRADA', 'TRANSFERENCIA', 'AJUSTE_POSITIVO') THEN mov.cantidad
-          WHEN mov.ubicacion_origen_id = u.id AND mov.tipo IN ('SALIDA', 'TRANSFERENCIA', 'AJUSTE_NEGATIVO') THEN -mov.cantidad
-          ELSE 0
-        END
-      ), 0.00) AS stock_total_ubicacion
+      u.id AS ubicacion_id,
+      u.id,
+      u.codigo AS ubicacion_codigo,
+      u.codigo,
+      u.nombre AS ubicacion_nombre,
+      u.nombre,
+      u.tipo AS ubicacion_tipo,
+      u.tipo,
+      u.responsable AS ubicacion_responsable,
+      u.responsable,
+      COUNT(DISTINCT CASE WHEN saldo_mat.saldo > 0 THEN saldo_mat.material_id END) AS items_distintos,
+      COUNT(DISTINCT CASE WHEN saldo_mat.saldo > 0 THEN saldo_mat.material_id END) AS items_almacenados,
+      COALESCE(SUM(CASE WHEN saldo_mat.saldo > 0 THEN saldo_mat.saldo ELSE 0 END), 0.00) AS unidades_totales,
+      COALESCE(SUM(CASE WHEN saldo_mat.saldo > 0 THEN saldo_mat.saldo ELSE 0 END), 0.00) AS stock_total_ubicacion,
+      COALESCE(SUM(CASE WHEN saldo_mat.saldo > 0 THEN saldo_mat.saldo * saldo_mat.costo_unitario_crc ELSE 0 END), 0.00) AS valoracion_total_crc
     FROM ubicaciones u
-    CROSS JOIN materiales m
-    LEFT JOIN movimientos mov ON mov.material_id = m.id AND (mov.ubicacion_origen_id = u.id OR mov.ubicacion_destino_id = u.id)
+    LEFT JOIN (
+      SELECT
+        sub.ubicacion_id,
+        sub.material_id,
+        m.costo_unitario_crc,
+        SUM(sub.cantidad_delta) AS saldo
+      FROM (
+        SELECT
+          ubicacion_destino_id AS ubicacion_id,
+          material_id,
+          cantidad AS cantidad_delta
+        FROM movimientos
+        WHERE ubicacion_destino_id IS NOT NULL AND tipo IN ('ENTRADA', 'TRANSFERENCIA', 'AJUSTE_POSITIVO')
+        UNION ALL
+        SELECT
+          ubicacion_origen_id AS ubicacion_id,
+          material_id,
+          -cantidad AS cantidad_delta
+        FROM movimientos
+        WHERE ubicacion_origen_id IS NOT NULL AND tipo IN ('SALIDA', 'TRANSFERENCIA', 'AJUSTE_NEGATIVO')
+      ) sub
+      JOIN materiales m ON m.id = sub.material_id
+      GROUP BY sub.ubicacion_id, sub.material_id, m.costo_unitario_crc
+    ) saldo_mat ON saldo_mat.ubicacion_id = u.id
     WHERE u.activo = 1
-    GROUP BY u.id, u.codigo, u.nombre, u.tipo
-    ORDER BY stock_total_ubicacion DESC;
+    GROUP BY u.id, u.codigo, u.nombre, u.tipo, u.responsable
+    ORDER BY u.codigo ASC;
   `);
 
   return {
     totalMateriales,
     valorTotalInventarioCrc: Number(valorInventarioCrc.toFixed(2)),
-    alertasActivas: alertStats.total_activas,
-    ordenesPendientesAprobacion: ocStats.pendientes_aprobacion,
+    alertasActivas: alertStats ? alertStats.total_activas : 0,
+    ordenesPendientesAprobacion: ocStats ? ocStats.pendientes_aprobacion : 0,
     distribucionStockPorEstado: {
       normal: normalCount,
       reorden: reordenCount,
@@ -171,28 +204,31 @@ export async function obtenerMetricasDashboard({ fecha_desde, fecha_hasta, categ
       normalCount,
     },
     ordenes: {
-      pendientesAprobacion: ocStats.pendientes_aprobacion,
-      parcialmenteRecibidas: ocStats.parcialmente_recibidas,
-      enProcesoEntrega: ocStats.en_proceso_entrega,
-      duplicadosPorRevisar: ocStats.duplicados_por_revisar,
-      totalComprasCrc: Number(ocStats.total_compras_crc),
+      pendientesAprobacion: ocStats ? ocStats.pendientes_aprobacion : 0,
+      parcialmenteRecibidas: ocStats ? ocStats.parcialmente_recibidas : 0,
+      enProcesoEntrega: ocStats ? ocStats.en_proceso_entrega : 0,
+      duplicadosPorRevisar: ocStats ? ocStats.duplicados_por_revisar : 0,
+      totalComprasCrc: Number(ocStats?.total_compras_crc || 0),
     },
     alertas: {
-      totalActivas: alertStats.total_activas,
-      criticas: alertStats.criticas,
-      altas: alertStats.altas,
-      medias: alertStats.medias,
+      totalActivas: alertStats ? alertStats.total_activas : 0,
+      criticas: alertStats ? alertStats.criticas : 0,
+      altas: alertStats ? alertStats.altas : 0,
+      medias: alertStats ? alertStats.medias : 0,
     },
     movimientosRecientes,
+    ultimosMovimientos: movimientosRecientes,
     actividadReciente,
+    auditoriaReciente: actividadReciente,
     categoriasDistribucion,
     ubicacionesDistribucion,
+    stockPorUbicacion: ubicacionesDistribucion,
   };
 }
 
 /**
  * Dashboard exclusivo para ADMINISTRADOR.
- * Indicadores generales, usuarios, roles, auditoria, estado outbox y reglas.
+ * Indicadores generales, usuarios, roles, auditoria, estado outbox y reglas operativas.
  */
 export async function obtenerDashboardAdmin() {
   const metricasBase = await obtenerMetricasDashboard();
@@ -208,22 +244,59 @@ export async function obtenerDashboardAdmin() {
     FROM usuarios;
   `);
 
-  const [outboxStats] = await query(`
+  const [outboxCounts] = await query(`
     SELECT
-      COUNT(CASE WHEN estado = 'PENDIENTE' THEN 1 END) AS eventos_pendientes,
-      COUNT(CASE WHEN estado = 'PROCESSING' THEN 1 END) AS eventos_en_proceso,
-      COUNT(CASE WHEN estado = 'PROCESADO' THEN 1 END) AS eventos_procesados,
-      COUNT(CASE WHEN estado = 'FAILED' THEN 1 END) AS eventos_fallidos
+      COUNT(CASE WHEN estado = 'PENDIENTE' THEN 1 END) AS pendientes,
+      COUNT(CASE WHEN estado = 'PROCESSING' THEN 1 END) AS en_proceso,
+      COUNT(CASE WHEN estado = 'PROCESADO' THEN 1 END) AS procesados,
+      COUNT(CASE WHEN estado = 'ERROR' THEN 1 END) AS fallidos
     FROM eventos_integracion;
   `);
 
+  const outboxStats = {
+    pendientes: Number(outboxCounts?.pendientes || 0),
+    en_proceso: Number(outboxCounts?.en_proceso || 0),
+    procesados: Number(outboxCounts?.procesados || 0),
+    fallidos: Number(outboxCounts?.fallidos || 0),
+    eventos_pendientes: Number(outboxCounts?.pendientes || 0),
+    eventos_en_proceso: Number(outboxCounts?.en_proceso || 0),
+    eventos_procesados: Number(outboxCounts?.procesados || 0),
+    eventos_fallidos: Number(outboxCounts?.fallidos || 0),
+  };
+
   const [reglasStats] = await query('SELECT COUNT(*) AS total_reglas FROM configuracion_reglas;');
+
+  // Resumen de parámetros operativos para el panel de administración
+  const reglasResumen = await query(`
+    SELECT id, clave, ambito, tipo_dato, valor_numerico, valor_texto, descripcion, activo
+    FROM configuracion_reglas
+    WHERE activo = 1
+    ORDER BY id ASC
+    LIMIT 8;
+  `);
+
+  // Eventos recientes de sincronización e integración para la tabla detallada
+  const eventosRecientes = await query(`
+    SELECT
+      e.id, e.evento_uuid, e.clave_idempotencia, e.tipo_evento,
+      e.entidad_tipo, e.entidad_tipo AS entidad, e.entidad_id, e.estado,
+      e.intentos, e.max_intentos, e.ultimo_error,
+      e.created_at, e.created_at AS fecha_creacion,
+      e.processed_at, e.processed_at AS fecha_procesado,
+      e.resultado_procesamiento, e.payload
+    FROM eventos_integracion e
+    ORDER BY e.created_at DESC, e.id DESC
+    LIMIT 10;
+  `);
 
   return {
     ...metricasBase,
     usuarios: usrStats,
     outbox: outboxStats,
+    outboxStats,
     totalReglas: reglasStats ? reglasStats.total_reglas : 0,
+    reglasResumen,
+    eventosRecientes,
   };
 }
 
@@ -234,12 +307,17 @@ export async function obtenerDashboardAdmin() {
 export async function obtenerDashboardInventario() {
   const metricasBase = await obtenerMetricasDashboard();
 
-  // Materiales en estado critico o reorden
+  // Materiales en estado critico o reorden con compatibilidad total de nombres
   const itemsCriticos = await query(`
     SELECT
       m.id, m.codigo, m.nombre, m.unidad_medida, m.stock_minimo, m.punto_reorden,
       c.nombre AS categoria_nombre,
       COALESCE(stk.stock_global, 0.00) AS stock_actual,
+      COALESCE(stk.stock_global, 0.00) AS stock_global,
+      CASE
+        WHEN COALESCE(stk.stock_global, 0.00) <= m.stock_minimo THEN 'CRITICO'
+        ELSE 'REORDEN'
+      END AS estado_stock,
       CASE
         WHEN COALESCE(stk.stock_global, 0.00) <= m.stock_minimo THEN 'STOCK_CRITICO'
         ELSE 'REORDEN'
@@ -358,7 +436,8 @@ export async function obtenerDashboardConsulta() {
   const auditoriaReciente = await query(`
     SELECT
       a.id, a.accion, a.tipo_operacion, a.entidad_afectada, a.registro_afectado_id,
-      a.motivo, a.fecha_hora,
+      a.motivo, a.fecha_hora, a.fecha_hora AS created_at,
+      COALESCE(a.datos_nuevos, a.datos_previos) AS payload,
       u.nombre AS usuario_nombre, u.rol AS usuario_rol
     FROM auditoria a
     LEFT JOIN usuarios u ON u.id = a.usuario_id
@@ -371,4 +450,3 @@ export async function obtenerDashboardConsulta() {
     auditoriaReciente,
   };
 }
-

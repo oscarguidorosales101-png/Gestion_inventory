@@ -90,7 +90,9 @@ export async function listarAuditoria({ entidad, tipo_operacion, usuario_id, des
       a.id, a.usuario_id, u.nombre AS usuario_nombre, u.rol AS usuario_rol,
       a.accion, a.tipo_operacion, a.entidad_afectada, a.registro_afectado_id,
       a.cantidad_anterior, a.cantidad_nueva, a.motivo,
-      a.datos_previos, a.datos_nuevos, a.fecha_hora
+      a.datos_previos, a.datos_nuevos,
+      COALESCE(a.datos_nuevos, a.datos_previos) AS payload,
+      a.fecha_hora, a.fecha_hora AS created_at
     FROM auditoria a
     LEFT JOIN usuarios u ON u.id = a.usuario_id
     ${whereClause}

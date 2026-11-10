@@ -67,3 +67,27 @@ export async function revisarDuplicado(req, res, next) {
   }
 }
 
+export async function obtenerAnalisisIA(req, res, next) {
+  try {
+    const { id } = req.params;
+    let analisis = await ordenService.obtenerAnalisisDuplicadoIA(id);
+    if (!analisis) {
+      analisis = await ordenService.ejecutarAnalisisDuplicadoIA(id);
+    }
+    return successResponse(res, analisis, 'Analisis de duplicidad IA obtenido');
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function analizarIA(req, res, next) {
+  try {
+    const { id } = req.params;
+    const analisis = await ordenService.ejecutarAnalisisDuplicadoIA(id);
+    return successResponse(res, analisis, 'Analisis de duplicidad IA ejecutado exitosamente');
+  } catch (err) {
+    next(err);
+  }
+}
+
+

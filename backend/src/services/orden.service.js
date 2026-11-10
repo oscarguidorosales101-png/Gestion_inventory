@@ -1,6 +1,7 @@
 import { query, withTransaction } from '../config/db.js';
 import { obtenerRegla } from './regla.service.js';
 import { registrarAuditoria } from './auditoria.service.js';
+import { analizarDuplicidadOrdenIA } from './gemini.service.js';
 
 /**
  * Determina el nivel de aprobacion requerido en CRC segun los umbrales configurados.
@@ -255,6 +256,15 @@ export async function crearOrdenCompra(datos, usuario_id) {
 
     return await obtenerOrdenPorId(nuevaOrdenId, conn);
   });
+
+  // Ejecución asíncrona de análisis multifactorial inteligente con Gemini IA (no bloquea el commit de BD)
+  setImmediate(() => {
+    ejecutarAnalisisDuplicadoIA(ordenCreada.id).catch((err) => {
+      console.error(`[Gemini IA] Error evaluando duplicidad de orden #${ordenCreada.id}:`, err.message);
+    });
+  });
+
+  return ordenCreada;
 }
 
 /**
@@ -594,4 +604,181 @@ export async function revisarDuplicadoOrden(id, { decision, observaciones }, usu
     return await obtenerOrdenPorId(id, conn);
   });
 }
+
+/**
+ * Obtiene el último análisis multifactorial de duplicidad emitido por Gemini IA para una orden.
+ */
+export async function obtenerAnalisisDuplicadoIA(ordenId, conn = null) {
+  const runner = conn || { query };
+  const rows = await runner.query(
+    `SELECT
+      id, orden_compra_id, orden_similar_id, es_posible_duplicado,
+      nivel_coincidencia, nivel_confianza, explicacion,
+      motivos_coincidencia, diferencias_detectadas, datos_justifican,
+      consecuencias_posibles, recomendacion, procedimiento_sugerido,
+      modelo_utilizado, fecha_analisis, created_at
+    FROM ordenes_compra_analisis_ia
+    WHERE orden_compra_id = ?
+    ORDER BY id DESC
+    LIMIT 1;`,
+    [ordenId]
+  );
+  const data = Array.isArray(rows[0]) ? rows[0][0] : rows[0];
+  if (!data) return null;
+
+  return {
+    ...data,
+    motivos_coincidencia: typeof data.motivos_coincidencia === 'string' ? JSON.parse(data.motivos_coincidencia) : (data.motivos_coincidencia || []),
+    diferencias_detectadas: typeof data.diferencias_detectadas === 'string' ? JSON.parse(data.diferencias_detectadas) : (data.diferencias_detectadas || []),
+    datos_justifican: typeof data.datos_justifican === 'string' ? JSON.parse(data.datos_justifican) : (data.datos_justifican || {}),
+  };
+}
+
+/**
+ * Guarda el análisis de duplicidad emitido por IA y actualiza la orden de compra.
+ */
+export async function guardarAnalisisDuplicadoIA(ordenId, analisis, conn = null) {
+  const runner = conn || { query };
+  const esDup = Boolean(analisis.es_posible_duplicado);
+  const ordenSimilarId = analisis.orden_similar_id ? Number(analisis.orden_similar_id) : null;
+  const nivelCoincidencia = analisis.nivel_coincidencia || (esDup ? 'ALTA' : 'SIN_COINCIDENCIAS');
+  const nivelConfianza = analisis.nivel_confianza || (esDup ? 'ALTO' : 'MODERADO');
+  const explicacion = analisis.explicacion || '';
+  const motivos = JSON.stringify(analisis.motivos_coincidencia || []);
+  const diferencias = JSON.stringify(analisis.diferencias_detectadas || []);
+  const justificacion = JSON.stringify(analisis.datos_justifican || {});
+  const consecuencias = analisis.consecuencias_posibles || '';
+  const recomendacion = analisis.recomendacion || '';
+  const procedimiento = analisis.procedimiento_sugerido || '';
+  const modelo = analisis.modelo_utilizado || 'gemini-3.5-flash-lite';
+
+  await runner.query(
+    `INSERT INTO ordenes_compra_analisis_ia (
+      orden_compra_id, orden_similar_id, es_posible_duplicado, nivel_coincidencia,
+      nivel_confianza, explicacion, motivos_coincidencia, diferencias_detectadas,
+      datos_justifican, consecuencias_posibles, recomendacion, procedimiento_sugerido,
+      modelo_utilizado, fecha_analisis
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW());`,
+    [
+      ordenId, ordenSimilarId, esDup ? 1 : 0, nivelCoincidencia,
+      nivelConfianza, explicacion, motivos, diferencias,
+      justificacion, consecuencias, recomendacion, procedimiento,
+      modelo
+    ]
+  );
+
+  // Actualizar estado de la orden en ordenes_compra si se detectó duplicado y no ha sido resuelta
+  if (esDup) {
+    await runner.query(
+      `UPDATE ordenes_compra
+       SET es_posible_duplicado = 1,
+           estado_revision_duplicado = 'PENDIENTE_REVISION',
+           orden_similar_id = COALESCE(?, orden_similar_id),
+           updated_at = NOW()
+       WHERE id = ? AND estado_revision_duplicado NOT IN ('CONFIRMADO_DUPLICADO', 'DESCARTADO_FALSO_POSITIVO');`,
+      [ordenSimilarId, ordenId]
+    );
+
+    // Crear alerta si no existe ya para esta orden
+    const existenteAlerta = await runner.query(
+      `SELECT id FROM alertas WHERE contexto_clave = ? AND estado = 'ACTIVA';`,
+      [`DUPLICADO:OC:${ordenId}`]
+    );
+    const tieneAlerta = Array.isArray(existenteAlerta) && existenteAlerta.length > 0;
+    if (!tieneAlerta) {
+      await runner.query(
+        `INSERT INTO alertas (
+          tipo, severidad, material_id, ubicacion_id, titulo, mensaje,
+          contexto_clave, estado, fecha_deteccion, created_at
+        ) VALUES (
+          'ORDEN_DUPLICADA', 'ALTA', NULL, NULL,
+          ?, ?, ?, 'ACTIVA', NOW(), NOW()
+        );`,
+        [
+          `Posible Duplicado: Orden #${ordenId}`,
+          `Gemini IA detectó coincidencia ${nivelCoincidencia}: ${explicacion.slice(0, 200)}`,
+          `DUPLICADO:OC:${ordenId}`
+        ]
+      );
+    }
+  }
+
+  return await obtenerAnalisisDuplicadoIA(ordenId, conn);
+}
+
+/**
+ * Ejecuta el flujo integral de evaluación de duplicidad asistido por Gemini IA.
+ */
+export async function ejecutarAnalisisDuplicadoIA(ordenId) {
+  const orden = await obtenerOrdenPorId(ordenId);
+  if (!orden) throw new Error(`Orden #${ordenId} no encontrada.`);
+
+  // Buscar candidatas en la ventana de 7 días del mismo proveedor
+  const candidatasRows = await query(
+    `SELECT
+      oc.id, oc.numero_orden, oc.fecha_emision, oc.fecha_entrega_estimada,
+      oc.subtotal_crc, oc.impuestos_crc, oc.total_crc, oc.estado,
+      u.nombre AS bodega_destino,
+      p.razon_social AS proveedor_nombre, p.identificacion_fiscal AS proveedor_cedula
+    FROM ordenes_compra oc
+    JOIN proveedores p ON p.id = oc.proveedor_id
+    JOIN ubicaciones u ON u.id = oc.ubicacion_destino_id
+    WHERE oc.proveedor_id = ?
+      AND oc.id <> ?
+      AND oc.estado <> 'CANCELADA'
+      AND ABS(TIMESTAMPDIFF(DAY, oc.fecha_emision, ?)) <= 7
+    ORDER BY oc.fecha_emision DESC, oc.id DESC;`,
+    [orden.proveedor_id, ordenId, orden.fecha_emision]
+  );
+
+  const candidatas = [];
+  for (const cand of candidatasRows) {
+    const items = await query(
+      `SELECT
+        d.material_id, m.codigo, m.nombre, m.descripcion,
+        d.cantidad_solicitada, d.precio_unitario_crc, d.subtotal_crc
+      FROM detalle_orden_compra d
+      JOIN materiales m ON m.id = d.material_id
+      WHERE d.orden_compra_id = ?;`,
+      [cand.id]
+    );
+    candidatas.push({
+      ...cand,
+      items: items.map(it => ({
+        material_id: it.material_id,
+        codigo: it.codigo,
+        nombre: it.nombre,
+        descripcion: it.descripcion,
+        cantidad: Number(it.cantidad_solicitada),
+        precio_unitario: Number(it.precio_unitario_crc),
+        subtotal: Number(it.subtotal_crc),
+      })),
+    });
+  }
+
+  const ordenNuevaPayload = {
+    id: orden.id,
+    numero_orden: orden.numero_orden,
+    proveedor_id: orden.proveedor_id,
+    proveedor_nombre: orden.proveedor_nombre,
+    bodega_destino: orden.ubicacion_destino_nombre,
+    fecha_emision: orden.fecha_emision,
+    fecha_entrega_estimada: orden.fecha_entrega_estimada,
+    subtotal_crc: Number(orden.subtotal_crc),
+    impuestos_crc: Number(orden.impuestos_crc),
+    total_crc: Number(orden.total_crc),
+    items: (orden.items || []).map(it => ({
+      material_id: it.material_id,
+      codigo: it.material_codigo,
+      nombre: it.material_nombre,
+      cantidad: Number(it.cantidad_solicitada),
+      precio_unitario: Number(it.precio_unitario_crc),
+      subtotal: Number(it.subtotal_crc),
+    })),
+  };
+
+  const analisisResultado = await analizarDuplicidadOrdenIA(ordenNuevaPayload, candidatas);
+  return await guardarAnalisisDuplicadoIA(ordenId, analisisResultado);
+}
+
 

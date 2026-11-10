@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { formatMoneda, formatFecha } from '../utils/formatters';
+import { RevisionDuplicadoModal } from '../features/ordenes/RevisionDuplicadoModal';
 import {
   ShoppingCart,
   Coins,
@@ -27,21 +28,25 @@ export const ComprasDashboard = ({ onNavigate }) => {
   const [motivoRevision, setMotivoRevision] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  const cargarDatos = async () => {
+  const cargarDatos = async (silencioso = false) => {
     try {
-      setLoading(true);
+      if (!silencioso) setLoading(true);
       setError(null);
       const res = await api.dashboard.getComprasDashboard();
       setData(res.data);
     } catch (err) {
       setError(err?.message || 'Error al cargar métricas del Tablero de Compras.');
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   };
 
   useEffect(() => {
     cargarDatos();
+    const interval = setInterval(() => {
+      cargarDatos(true);
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleResolverDuplicado = async (resolucion) => {
@@ -312,58 +317,16 @@ export const ComprasDashboard = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Modal de Resolución de Duplicados */}
+      {/* Modal de Revisión de Duplicados Asistido por Google Gemini IA */}
       {revisionModal && (
-        <div className="modal-overlay" onClick={() => setRevisionModal(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">Revisión de Posible Duplicado — {revisionModal.numero_orden}</span>
-            </div>
-            <div className="modal-body">
-              <p style={{ fontSize: '0.85rem', color: '#64748B', marginBottom: '16px' }}>
-                El sistema detectó que esta orden para el proveedor <strong>{revisionModal.proveedor_nombre}</strong> por valor de <strong>{formatMoneda(revisionModal.total_crc)}</strong> presenta similitudes críticas con una orden anterior (ID #{revisionModal.orden_similar_id}).
-              </p>
-
-              <div className="form-group">
-                <label className="form-label">Justificación o Motivo Formal (Obligatorio para Auditoría)</label>
-                <textarea
-                  className="form-textarea"
-                  rows={3}
-                  required
-                  placeholder="Explique por qué se descarta como falso positivo o se confirma el duplicado..."
-                  value={motivoRevision}
-                  onChange={(e) => setMotivoRevision(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setRevisionModal(null)}
-                disabled={actionLoading}
-              >
-                Cerrar
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={actionLoading}
-                onClick={() => handleResolverDuplicado('CONFIRMAR_DUPLICADO')}
-              >
-                Confirmar Duplicado (Cancelar Orden)
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={actionLoading}
-                onClick={() => handleResolverDuplicado('DESCARTAR_FALSO_POSITIVO')}
-              >
-                Descartar (Falso Positivo)
-              </button>
-            </div>
-          </div>
-        </div>
+        <RevisionDuplicadoModal
+          orden={revisionModal}
+          onClose={() => setRevisionModal(null)}
+          onSuccess={() => {
+            setRevisionModal(null);
+            cargarDatos(false);
+          }}
+        />
       )}
     </div>
   );

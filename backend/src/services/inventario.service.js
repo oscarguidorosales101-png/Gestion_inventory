@@ -205,6 +205,7 @@ export async function obtenerDesglosePorUbicaciones(material_id, conn = null) {
   const sql = `
     SELECT
       u.id AS ubicacion_id, u.codigo AS ubicacion_codigo, u.nombre AS ubicacion_nombre,
+      u.tipo, u.responsable,
       COALESCE(SUM(
         CASE
           WHEN mov.ubicacion_destino_id = u.id AND mov.tipo IN ('ENTRADA', 'TRANSFERENCIA', 'AJUSTE_POSITIVO') THEN mov.cantidad
@@ -215,7 +216,7 @@ export async function obtenerDesglosePorUbicaciones(material_id, conn = null) {
     FROM ubicaciones u
     LEFT JOIN movimientos mov ON mov.material_id = ? AND (mov.ubicacion_origen_id = u.id OR mov.ubicacion_destino_id = u.id)
     WHERE u.activo = 1
-    GROUP BY u.id, u.codigo, u.nombre
+    GROUP BY u.id, u.codigo, u.nombre, u.tipo, u.responsable
     HAVING stock_ubicacion > 0
     ORDER BY u.codigo ASC;
   `;
