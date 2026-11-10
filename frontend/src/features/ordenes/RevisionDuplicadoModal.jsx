@@ -13,6 +13,8 @@ import {
   Activity,
   ArrowRight,
   Info,
+  RefreshCw,
+  Clock,
 } from 'lucide-react';
 
 export const RevisionDuplicadoModal = ({ orden, onClose, onSuccess }) => {
@@ -20,24 +22,64 @@ export const RevisionDuplicadoModal = ({ orden, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [analisisIA, setAnalisisIA] = useState(null);
   const [loadingIA, setLoadingIA] = useState(true);
+  const [reanalizando, setReanalizando] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function cargarAnalisis() {
+    let intervalId = null;
+
+    async function fetchAnalisis(silent = false) {
       try {
-        setLoadingIA(true);
+        if (!silent) setLoadingIA(true);
         const res = await api.ordenes.getAnalisisIA(orden.id);
-        setAnalisisIA(res.data);
+        const data = res?.data;
+        setAnalisisIA(data);
+
+        // Si el estado es PENDIENTE, PROCESSING o REINTENTO_PROGRAMADO, mantener sondeo cada 3s
+        if (data && ['PENDIENTE', 'PROCESSING', 'REINTENTO_PROGRAMADO'].includes(data.estado_analisis)) {
+          if (!intervalId) {
+            intervalId = setInterval(() => {
+              fetchAnalisis(true);
+            }, 3000);
+          }
+        } else {
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
       } catch (err) {
         console.error('Error al cargar análisis de duplicidad IA:', err);
       } finally {
-        setLoadingIA(false);
+        if (!silent) setLoadingIA(false);
       }
     }
+
     if (orden?.id) {
-      cargarAnalisis();
+      fetchAnalisis(false);
     }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [orden?.id]);
+
+  const handleReanalizar = async () => {
+    try {
+      setReanalizando(true);
+      setError(null);
+      const res = await api.ordenes.analizarIA(orden.id);
+      if (res?.data) {
+        setAnalisisIA(res.data);
+      }
+    } catch (err) {
+      setError(err?.message || 'Error al solicitar evaluación a Google Gemini.');
+    } finally {
+      setReanalizando(false);
+    }
+  };
 
   const handleResolver = async (resolucion) => {
     if (!motivo.trim()) {
@@ -92,6 +134,8 @@ export const RevisionDuplicadoModal = ({ orden, onClose, onSuccess }) => {
         return nivel || 'Pendiente de Evaluación';
     }
   };
+
+  const estadoAnalisis = analisisIA?.estado_analisis || (loadingIA ? 'PROCESSING' : 'COMPLETADO');
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -158,24 +202,94 @@ export const RevisionDuplicadoModal = ({ orden, onClose, onSuccess }) => {
                 <Sparkles size={18} />
                 <span>Análisis Multifactorial con Google Gemini IA</span>
               </div>
-              {analisisIA?.modelo_utilizado && (
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#15803D', backgroundColor: '#DCFCE7', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
-                    {analisisIA.modelo_utilizado}
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: '#475569', backgroundColor: '#E2E8F0', padding: '2px 8px', borderRadius: '4px' }}>
-                    Confianza: {analisisIA.nivel_confianza || 'Alta'}
-                  </span>
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                {analisisIA?.modelo_utilizado && (
+                  <>
+                    <span style={{ fontSize: '0.72rem', color: '#15803D', backgroundColor: '#DCFCE7', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                      {analisisIA.modelo_utilizado}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#475569', backgroundColor: '#E2E8F0', padding: '2px 8px', borderRadius: '4px' }}>
+                      Confianza: {analisisIA.nivel_confianza || 'Alta'}
+                    </span>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '2px 8px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  onClick={handleReanalizar}
+                  disabled={reanalizando || loadingIA}
+                  title="Reevaluar con Gemini"
+                >
+                  <RefreshCw size={12} className={reanalizando ? 'spin' : ''} />
+                  <span>{reanalizando ? 'Evaluando...' : 'Reevaluar'}</span>
+                </button>
+              </div>
             </div>
 
-            {loadingIA ? (
+            {/* Estado 1: PROCESSING / PENDIENTE */}
+            {loadingIA || estadoAnalisis === 'PROCESSING' || estadoAnalisis === 'PENDIENTE' ? (
               <div style={{ textAlign: 'center', padding: '24px 0', color: '#15803D' }}>
-                <Activity size={22} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
-                <div style={{ fontSize: '0.82rem' }}>Evaluando coincidencias multifactoriales con Gemini...</div>
+                <Activity size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                  Evaluando coincidencias multifactoriales con Google Gemini IA...
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '4px' }}>
+                  El análisis se ejecuta de forma asíncrona mediante n8n. Esta ventana se actualizará automáticamente.
+                </div>
+              </div>
+            ) : estadoAnalisis === 'REINTENTO_PROGRAMADO' ? (
+              /* Estado 2: REINTENTO_PROGRAMADO */
+              <div style={{ backgroundColor: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: '6px', padding: '14px', color: '#92400E' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.85rem', marginBottom: '6px' }}>
+                  <Clock size={16} color="#D97706" />
+                  <span>Reintento Automático Programado (Intento #{analisisIA?.intentos || 1})</span>
+                </div>
+                <div style={{ fontSize: '0.8rem', lineHeight: '1.4', marginBottom: '10px' }}>
+                  El modelo Google Gemini experimentó una alta demanda transitoria (HTTP 503).
+                  El workflow de n8n reintentará automáticamente el análisis en el próximo ciclo (cada 60 segundos).
+                </div>
+                {analisisIA?.ultimo_error && (
+                  <div style={{ fontSize: '0.74rem', backgroundColor: '#FEF3C7', padding: '6px 8px', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '10px' }}>
+                    Diagnóstico: {analisisIA.ultimo_error}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn btn-warning btn-sm"
+                    onClick={handleReanalizar}
+                    disabled={reanalizando}
+                    style={{ fontSize: '0.78rem' }}
+                  >
+                    {reanalizando ? 'Reintentando con Gemini...' : 'Reintentar Evaluación Ahora'}
+                  </button>
+                </div>
+              </div>
+            ) : estadoAnalisis === 'ERROR' ? (
+              /* Estado 3: ERROR */
+              <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '6px', padding: '14px', color: '#991B1B' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.85rem', marginBottom: '6px' }}>
+                  <AlertOctagon size={16} />
+                  <span>No se pudo completar el análisis automático de Gemini</span>
+                </div>
+                <div style={{ fontSize: '0.8rem', marginBottom: '10px' }}>
+                  {analisisIA?.ultimo_error || 'Error de comunicación persistente con la API de Google Gemini.'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    onClick={handleReanalizar}
+                    disabled={reanalizando}
+                    style={{ fontSize: '0.78rem' }}
+                  >
+                    {reanalizando ? 'Reintentando...' : 'Reintentar Evaluación'}
+                  </button>
+                </div>
               </div>
             ) : analisisIA ? (
+              /* Estado 4: COMPLETADO */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {/* Explicación Ejecutiva */}
                 <div style={{ fontSize: '0.85rem', color: '#1E293B', lineHeight: '1.45', backgroundColor: '#FFFFFF', padding: '12px', borderRadius: '6px', border: '1px solid #DCFCE7' }}>

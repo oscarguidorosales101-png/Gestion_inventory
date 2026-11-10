@@ -70,9 +70,15 @@ export async function revisarDuplicado(req, res, next) {
 export async function obtenerAnalisisIA(req, res, next) {
   try {
     const { id } = req.params;
+    const workerId = `web-user-${req.usuario?.id || 1}`;
     let analisis = await ordenService.obtenerAnalisisDuplicadoIA(id);
     if (!analisis) {
-      analisis = await ordenService.ejecutarAnalisisDuplicadoIA(id);
+      try {
+        analisis = await ordenService.ejecutarAnalisisDuplicadoIA(id, false, workerId);
+      } catch (err) {
+        analisis = await ordenService.obtenerAnalisisDuplicadoIA(id);
+        if (!analisis) throw err;
+      }
     }
     return successResponse(res, analisis, 'Analisis de duplicidad IA obtenido');
   } catch (err) {
@@ -83,8 +89,18 @@ export async function obtenerAnalisisIA(req, res, next) {
 export async function analizarIA(req, res, next) {
   try {
     const { id } = req.params;
-    const analisis = await ordenService.ejecutarAnalisisDuplicadoIA(id);
-    return successResponse(res, analisis, 'Analisis de duplicidad IA ejecutado exitosamente');
+    const workerId = `web-user-${req.usuario?.id || 1}`;
+    const forzar = req.body?.forzar !== undefined ? Boolean(req.body.forzar) : true;
+    try {
+      const analisis = await ordenService.ejecutarAnalisisDuplicadoIA(id, forzar, workerId);
+      return successResponse(res, analisis, 'Analisis de duplicidad IA ejecutado exitosamente');
+    } catch (err) {
+      const analisis = await ordenService.obtenerAnalisisDuplicadoIA(id);
+      if (analisis && (analisis.estado_analisis === 'REINTENTO_PROGRAMADO' || analisis.estado_analisis === 'ERROR')) {
+        return successResponse(res, analisis, 'Analisis registrado para reintento');
+      }
+      throw err;
+    }
   } catch (err) {
     next(err);
   }

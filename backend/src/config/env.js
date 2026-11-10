@@ -35,5 +35,10 @@ export const env = {
   SESSION_EXPIRATION_HOURS: Number(process.env.SESSION_EXPIRATION_HOURS) || 8,
   N8N_INTEGRATION_API_KEY: process.env.N8N_INTEGRATION_API_KEY || 'default_integration_key_change_in_prod',
   BACKEND_INTERNAL_URL: process.env.BACKEND_INTERNAL_URL || 'http://localhost:3001',
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+  GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
+  GEMINI_FALLBACK_MODEL: process.env.GEMINI_FALLBACK_MODEL || 'gemini-flash-lite-latest',
+  GEMINI_TIMEOUT_MS: Number(process.env.GEMINI_TIMEOUT_MS) || 20000,
+  GEMINI_MAX_RETRIES: Number(process.env.GEMINI_MAX_RETRIES) || 3,
 };
 

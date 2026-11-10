@@ -101,21 +101,8 @@
     },
     {
       "parameters": {
-        "jsCode": "// Nivel C Idempotencia: Clave determinista para efectos externos\nconst evento = $input.item.json;\nconst idempotencyKey = `${evento.evento_uuid}:NOTIFICACION_EXTERNA`;\nreturn {\n  ...evento,\n  idempotency_key: idempotencyKey,\n  procesado_en: new Date().toISOString(),\n  estado_procesamiento: 'COMPLETADO'\n};"
-      },
-      "id": "node-procesar-payload",
-      "name": "Transformar y Asignar Idempotency-Key",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1100,
-        300
-      ]
-    },
-    {
-      "parameters": {
         "method": "POST",
-        "url": "http://localhost:3001/api/integracion/eventos/{{ $json.id }}/completar",
+        "url": "=http://localhost:3001/api/integracion/ordenes/{{ $json.entidad_id }}/evaluar-duplicado-ia",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -131,7 +118,81 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"claim_token\": \"{{ $json.claim_token }}\",\n  \"resultado\": {\n    \"status\": \"OK\",\n    \"worker\": \"n8n-processor-01\",\n    \"idempotency_key\": \"{{ $json.idempotency_key }}\"\n  }\n}"
+        "jsonBody": "{}"
+      },
+      "id": "node-evaluar-gemini-ia",
+      "name": "Evaluar Duplicidad con Gemini IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        180
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:3001/api/integracion/eventos/{{ $('Desglosar Eventos Reclamados').item.json.id }}/fallar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Integration-Key",
+              "value": "9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"claim_token\": \"{{ $('Desglosar Eventos Reclamados').item.json.claim_token }}\",\n  \"error_mensaje\": \"{{ $json.error?.message || $json.message || 'Error transitorio en evaluación con Gemini IA' }}\"\n}"
+      },
+      "id": "node-fallar-evento-outbox",
+      "name": "Fallar Evento Outbox (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nivel C Idempotencia: Clave determinista para efectos externos\nconst evento = $('Desglosar Eventos Reclamados').item.json;\nconst idempotencyKey = `${evento.evento_uuid}:NOTIFICACION_EXTERNA`;\nreturn {\n  ...evento,\n  idempotency_key: idempotencyKey,\n  procesado_en: new Date().toISOString(),\n  estado_procesamiento: 'COMPLETADO'\n};"
+      },
+      "id": "node-procesar-payload",
+      "name": "Transformar y Asignar Idempotency-Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:3001/api/integracion/eventos/{{ $('Desglosar Eventos Reclamados').item.json.id }}/completar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Integration-Key",
+              "value": "9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"claim_token\": \"{{ $('Desglosar Eventos Reclamados').item.json.claim_token }}\",\n  \"resultado_procesamiento\": {\n    \"status\": \"OK\",\n    \"worker\": \"n8n-processor-01\",\n    \"idempotency_key\": \"{{ $json.idempotency_key }}\"\n  }\n}"
       },
       "id": "node-completar-evento",
       "name": "Completar Evento Outbox (POST)",
@@ -139,7 +200,7 @@
       "typeVersion": 4.2,
       "position": [
         1340,
-        300
+        380
       ]
     }
   ],
@@ -188,7 +249,7 @@
         ],
         [
           {
-            "node": "Transformar y Asignar Idempotency-Key",
+            "node": "Evaluar Duplicidad con Gemini IA",
             "type": "main",
             "index": 0
           }
@@ -210,6 +271,24 @@
         [
           {
             "node": "Transformar y Asignar Idempotency-Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluar Duplicidad con Gemini IA": {
+      "main": [
+        [
+          {
+            "node": "Transformar y Asignar Idempotency-Key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallar Evento Outbox (POST)",
             "type": "main",
             "index": 0
           }

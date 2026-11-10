@@ -11,7 +11,7 @@ export async function reclamarEventos(req, res, next) {
     const { batchSize = 20 } = req.body;
     const workerId = req.workerId || 'n8n-worker';
     const eventos = await outboxService.reclamarEventos(batchSize, workerId);
-    return successResponse(res, eventos, `Se han reclamado ${eventos.length} eventos para procesamiento`);
+    return successResponse(res, { eventos, items: eventos, total: eventos.length }, `Se han reclamado ${eventos.length} eventos para procesamiento`);
   } catch (err) {
     next(err);
   }
@@ -89,10 +89,18 @@ export async function duplicadosPendientes(req, res, next) {
         oc.id, oc.numero_orden, oc.proveedor_id, oc.fecha_emision, oc.total_crc,
         oc.es_posible_duplicado, oc.estado_revision_duplicado, oc.orden_similar_id,
         p.razon_social AS proveedor_nombre,
-        u.nombre AS creador_nombre
+        u.nombre AS creador_nombre,
+        ai.estado_analisis, ai.intentos, ai.ultimo_error, ai.modelo_utilizado
       FROM ordenes_compra oc
       JOIN proveedores p ON p.id = oc.proveedor_id
       LEFT JOIN usuarios u ON u.id = oc.usuario_creador_id
+      LEFT JOIN (
+        SELECT t1.orden_compra_id, t1.estado_analisis, t1.intentos, t1.ultimo_error, t1.modelo_utilizado
+        FROM ordenes_compra_analisis_ia t1
+        INNER JOIN (
+          SELECT MAX(id) as max_id FROM ordenes_compra_analisis_ia GROUP BY orden_compra_id
+        ) t2 ON t1.id = t2.max_id
+      ) ai ON ai.orden_compra_id = oc.id
       WHERE oc.es_posible_duplicado = 1 AND oc.estado_revision_duplicado = 'PENDIENTE_REVISION'
       ORDER BY oc.id DESC;
     `);
@@ -139,9 +147,20 @@ export async function guardarAnalisisDuplicadoIA(req, res, next) {
 export async function evaluarDuplicadoIA(req, res, next) {
   try {
     const { id } = req.params;
-    const resultado = await ordenService.ejecutarAnalisisDuplicadoIA(id);
+    const { forzar = false } = req.body || {};
+    const workerId = req.workerId || 'n8n-worker';
+    const resultado = await ordenService.ejecutarAnalisisDuplicadoIA(id, forzar, workerId);
     return successResponse(res, resultado, 'Analisis de duplicidad IA ejecutado exitosamente');
   } catch (err) {
+    if (err.isTransient || [503, 504, 429].includes(err.statusCode)) {
+      return res.status(503).json({
+        ok: false,
+        error: err.message,
+        isTransient: true,
+        reintento_programado: true,
+        message: 'Google Gemini experimenta alta demanda transitoria. Se ha programado reintento automático.',
+      });
+    }
     next(err);
   }
 }

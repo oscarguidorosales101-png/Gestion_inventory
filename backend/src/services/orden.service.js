@@ -1,7 +1,7 @@
 import { query, withTransaction } from '../config/db.js';
 import { obtenerRegla } from './regla.service.js';
 import { registrarAuditoria } from './auditoria.service.js';
-import { analizarDuplicidadOrdenIA } from './gemini.service.js';
+import { analizarDuplicidadOrdenIA, getGeminiConfig } from './gemini.service.js';
 
 /**
  * Determina el nivel de aprobacion requerido en CRC segun los umbrales configurados.
@@ -612,11 +612,12 @@ export async function obtenerAnalisisDuplicadoIA(ordenId, conn = null) {
   const runner = conn || { query };
   const rows = await runner.query(
     `SELECT
-      id, orden_compra_id, orden_similar_id, es_posible_duplicado,
-      nivel_coincidencia, nivel_confianza, explicacion,
+      id, orden_compra_id, orden_similar_id, resultado, estado_analisis,
+      intentos, ultimo_error, candidatos_evaluados, locked_at, locked_by,
+      es_posible_duplicado, nivel_coincidencia, nivel_confianza, explicacion,
       motivos_coincidencia, diferencias_detectadas, datos_justifican,
       consecuencias_posibles, recomendacion, procedimiento_sugerido,
-      modelo_utilizado, fecha_analisis, created_at
+      modelo_utilizado, fecha_analisis, created_at, updated_at
     FROM ordenes_compra_analisis_ia
     WHERE orden_compra_id = ?
     ORDER BY id DESC
@@ -631,6 +632,7 @@ export async function obtenerAnalisisDuplicadoIA(ordenId, conn = null) {
     motivos_coincidencia: typeof data.motivos_coincidencia === 'string' ? JSON.parse(data.motivos_coincidencia) : (data.motivos_coincidencia || []),
     diferencias_detectadas: typeof data.diferencias_detectadas === 'string' ? JSON.parse(data.diferencias_detectadas) : (data.diferencias_detectadas || []),
     datos_justifican: typeof data.datos_justifican === 'string' ? JSON.parse(data.datos_justifican) : (data.datos_justifican || {}),
+    candidatos_evaluados: typeof data.candidatos_evaluados === 'string' ? JSON.parse(data.candidatos_evaluados) : (data.candidatos_evaluados || []),
   };
 }
 
@@ -641,6 +643,11 @@ export async function guardarAnalisisDuplicadoIA(ordenId, analisis, conn = null)
   const runner = conn || { query };
   const esDup = Boolean(analisis.es_posible_duplicado);
   const ordenSimilarId = analisis.orden_similar_id ? Number(analisis.orden_similar_id) : null;
+  const resultado = analisis.resultado || (esDup ? 'POSIBLE_DUPLICADO_DETECTADO' : 'SIN_COINCIDENCIAS');
+  const estadoAnalisis = analisis.estado_analisis || 'COMPLETADO';
+  const intentos = Number(analisis.intentos) || 1;
+  const ultimoError = analisis.ultimo_error || null;
+  const candidatosEvaluados = JSON.stringify(analisis.candidatos_evaluados || []);
   const nivelCoincidencia = analisis.nivel_coincidencia || (esDup ? 'ALTA' : 'SIN_COINCIDENCIAS');
   const nivelConfianza = analisis.nivel_confianza || (esDup ? 'ALTO' : 'MODERADO');
   const explicacion = analisis.explicacion || '';
@@ -650,55 +657,112 @@ export async function guardarAnalisisDuplicadoIA(ordenId, analisis, conn = null)
   const consecuencias = analisis.consecuencias_posibles || '';
   const recomendacion = analisis.recomendacion || '';
   const procedimiento = analisis.procedimiento_sugerido || '';
-  const modelo = analisis.modelo_utilizado || 'gemini-3.5-flash-lite';
+  const modelo = analisis.modelo_utilizado || getGeminiConfig().model;
 
-  await runner.query(
-    `INSERT INTO ordenes_compra_analisis_ia (
-      orden_compra_id, orden_similar_id, es_posible_duplicado, nivel_coincidencia,
-      nivel_confianza, explicacion, motivos_coincidencia, diferencias_detectadas,
-      datos_justifican, consecuencias_posibles, recomendacion, procedimiento_sugerido,
-      modelo_utilizado, fecha_analisis
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW());`,
-    [
-      ordenId, ordenSimilarId, esDup ? 1 : 0, nivelCoincidencia,
-      nivelConfianza, explicacion, motivos, diferencias,
-      justificacion, consecuencias, recomendacion, procedimiento,
-      modelo
-    ]
+  // Verificar si ya existe registro previo
+  const existentes = await runner.query(
+    `SELECT id, intentos FROM ordenes_compra_analisis_ia WHERE orden_compra_id = ? ORDER BY id DESC LIMIT 1;`,
+    [ordenId]
   );
+  const existente = Array.isArray(existentes) && existentes.length > 0 ? existentes[0] : (Array.isArray(existentes[0]) && existentes[0].length > 0 ? existentes[0][0] : null);
 
-  // Actualizar estado de la orden en ordenes_compra si se detectó duplicado y no ha sido resuelta
-  if (esDup) {
+  if (existente && existente.id) {
+    const nuevosIntentos = analisis.intentos !== undefined ? Number(analisis.intentos) : (existente.intentos || 1);
     await runner.query(
-      `UPDATE ordenes_compra
-       SET es_posible_duplicado = 1,
-           estado_revision_duplicado = 'PENDIENTE_REVISION',
-           orden_similar_id = COALESCE(?, orden_similar_id),
-           updated_at = NOW()
-       WHERE id = ? AND estado_revision_duplicado NOT IN ('CONFIRMADO_DUPLICADO', 'DESCARTADO_FALSO_POSITIVO');`,
-      [ordenSimilarId, ordenId]
+      `UPDATE ordenes_compra_analisis_ia
+       SET orden_similar_id = ?,
+           resultado = ?,
+           estado_analisis = ?,
+           intentos = ?,
+           ultimo_error = ?,
+           candidatos_evaluados = ?,
+           locked_at = NULL,
+           locked_by = NULL,
+           es_posible_duplicado = ?,
+           nivel_coincidencia = ?,
+           nivel_confianza = ?,
+           explicacion = ?,
+           motivos_coincidencia = ?,
+           diferencias_detectadas = ?,
+           datos_justifican = ?,
+           consecuencias_posibles = ?,
+           recomendacion = ?,
+           procedimiento_sugerido = ?,
+           modelo_utilizado = ?,
+           fecha_analisis = NOW()
+       WHERE id = ?;`,
+      [
+        ordenSimilarId, resultado, estadoAnalisis, nuevosIntentos, ultimoError,
+        candidatosEvaluados, esDup ? 1 : 0, nivelCoincidencia, nivelConfianza,
+        explicacion, motivos, diferencias, justificacion, consecuencias,
+        recomendacion, procedimiento, modelo, existente.id
+      ]
     );
+  } else {
+    await runner.query(
+      `INSERT INTO ordenes_compra_analisis_ia (
+        orden_compra_id, orden_similar_id, resultado, estado_analisis,
+        intentos, ultimo_error, candidatos_evaluados, locked_at, locked_by,
+        es_posible_duplicado, nivel_coincidencia, nivel_confianza,
+        explicacion, motivos_coincidencia, diferencias_detectadas,
+        datos_justifican, consecuencias_posibles, recomendacion,
+        procedimiento_sugerido, modelo_utilizado, fecha_analisis
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW());`,
+      [
+        ordenId, ordenSimilarId, resultado, estadoAnalisis,
+        intentos, ultimoError, candidatosEvaluados,
+        esDup ? 1 : 0, nivelCoincidencia, nivelConfianza,
+        explicacion, motivos, diferencias,
+        justificacion, consecuencias, recomendacion,
+        procedimiento, modelo
+      ]
+    );
+  }
 
-    // Crear alerta si no existe ya para esta orden
-    const existenteAlerta = await runner.query(
-      `SELECT id FROM alertas WHERE contexto_clave = ? AND estado = 'ACTIVA';`,
-      [`DUPLICADO:OC:${ordenId}`]
-    );
-    const tieneAlerta = Array.isArray(existenteAlerta) && existenteAlerta.length > 0;
-    if (!tieneAlerta) {
+  // Actualizar la orden de compra según el estado final del análisis
+  if (estadoAnalisis === 'COMPLETADO') {
+    if (esDup) {
       await runner.query(
-        `INSERT INTO alertas (
-          tipo, severidad, material_id, ubicacion_id, titulo, mensaje,
-          contexto_clave, estado, fecha_deteccion, created_at
-        ) VALUES (
-          'ORDEN_DUPLICADA', 'ALTA', NULL, NULL,
-          ?, ?, ?, 'ACTIVA', NOW(), NOW()
-        );`,
-        [
-          `Posible Duplicado: Orden #${ordenId}`,
-          `Gemini IA detectó coincidencia ${nivelCoincidencia}: ${explicacion.slice(0, 200)}`,
-          `DUPLICADO:OC:${ordenId}`
-        ]
+        `UPDATE ordenes_compra
+         SET es_posible_duplicado = 1,
+             estado_revision_duplicado = 'PENDIENTE_REVISION',
+             orden_similar_id = COALESCE(?, orden_similar_id),
+             updated_at = NOW()
+         WHERE id = ? AND estado_revision_duplicado NOT IN ('CONFIRMADO_DUPLICADO', 'DESCARTADO_FALSO_POSITIVO');`,
+        [ordenSimilarId, ordenId]
+      );
+
+      // Crear alerta si no existe ya para esta orden
+      const existenteAlerta = await runner.query(
+        `SELECT id FROM alertas WHERE contexto_clave = ? AND estado = 'ACTIVA';`,
+        [`DUPLICADO:OC:${ordenId}`]
+      );
+      const tieneAlerta = Array.isArray(existenteAlerta) && (existenteAlerta.length > 0 && existenteAlerta[0]);
+      if (!tieneAlerta) {
+        await runner.query(
+          `INSERT INTO alertas (
+            tipo, severidad, material_id, ubicacion_id, orden_compra_id, titulo, mensaje,
+            contexto_clave, estado, fecha_deteccion, created_at
+          ) VALUES (
+            'ORDEN_DUPLICADA', 'ALTA', NULL, NULL, ?,
+            ?, ?, ?, 'ACTIVA', NOW(), NOW()
+          );`,
+          [
+            ordenId,
+            `Posible Duplicado: Orden #${ordenId}`,
+            `Gemini IA detectó coincidencia ${nivelCoincidencia}: ${explicacion.slice(0, 200)}`,
+            `DUPLICADO:OC:${ordenId}`
+          ]
+        );
+      }
+    } else {
+      await runner.query(
+        `UPDATE ordenes_compra
+         SET es_posible_duplicado = 0,
+             estado_revision_duplicado = 'NO_APLICA',
+             updated_at = NOW()
+         WHERE id = ? AND estado_revision_duplicado = 'PENDIENTE_REVISION';`,
+        [ordenId]
       );
     }
   }
@@ -708,12 +772,50 @@ export async function guardarAnalisisDuplicadoIA(ordenId, analisis, conn = null)
 
 /**
  * Ejecuta el flujo integral de evaluación de duplicidad asistido por Gemini IA.
+ * Garantiza idempotencia, control de concurrencia y tolerancia a fallos transitorios.
  */
-export async function ejecutarAnalisisDuplicadoIA(ordenId) {
+export async function ejecutarAnalisisDuplicadoIA(ordenId, forzar = false, workerId = 'n8n-gemini-worker') {
   const orden = await obtenerOrdenPorId(ordenId);
-  if (!orden) throw new Error(`Orden #${ordenId} no encontrada.`);
+  if (!orden) {
+    const err = new Error(`Orden #${ordenId} no encontrada.`);
+    err.statusCode = 404;
+    throw err;
+  }
 
-  // Buscar candidatas en la ventana de 7 días del mismo proveedor
+  // 1. Idempotencia: si ya existe análisis COMPLETADO y no se fuerza reanálisis, retornar existente
+  const analisisPrevio = await obtenerAnalisisDuplicadoIA(ordenId);
+  if (!forzar && analisisPrevio && analisisPrevio.estado_analisis === 'COMPLETADO') {
+    return analisisPrevio;
+  }
+
+  // 2. Control de concurrencia: evitar doble ejecución simultánea
+  if (!forzar && analisisPrevio && analisisPrevio.estado_analisis === 'PROCESSING') {
+    const tiempoLock = analisisPrevio.locked_at ? (Date.now() - new Date(analisisPrevio.locked_at).getTime()) : 0;
+    if (tiempoLock < 120000) {
+      return analisisPrevio;
+    }
+  }
+
+  // 3. Establecer bloqueo y estado PROCESSING
+  const intentosActual = (analisisPrevio?.intentos || 0) + 1;
+  if (analisisPrevio && analisisPrevio.id) {
+    await query(
+      `UPDATE ordenes_compra_analisis_ia
+       SET estado_analisis = 'PROCESSING', locked_at = NOW(), locked_by = ?, intentos = ?
+       WHERE id = ?;`,
+      [workerId, intentosActual, analisisPrevio.id]
+    );
+  } else {
+    await query(
+      `INSERT INTO ordenes_compra_analisis_ia (
+        orden_compra_id, resultado, estado_analisis, intentos, locked_at, locked_by,
+        es_posible_duplicado, nivel_coincidencia, modelo_utilizado, fecha_analisis
+      ) VALUES (?, 'PENDIENTE_EVALUACION', 'PROCESSING', ?, NOW(), ?, 0, 'SIN_COINCIDENCIAS', ?, NOW());`,
+      [ordenId, intentosActual, workerId, getGeminiConfig().model]
+    );
+  }
+
+  // 4. Buscar órdenes candidatas en la ventana de 7 días del mismo proveedor
   const candidatasRows = await query(
     `SELECT
       oc.id, oc.numero_orden, oc.fecha_emision, oc.fecha_entrega_estimada,
@@ -756,6 +858,36 @@ export async function ejecutarAnalisisDuplicadoIA(ordenId) {
     });
   }
 
+  // Si no hay candidatas en la ventana histórica, emitir dictamen determinista sin costo de API
+  if (candidatas.length === 0) {
+    const analisisSinCoincidencias = {
+      resultado: 'SIN_COINCIDENCIAS',
+      es_posible_duplicado: false,
+      orden_similar_id: null,
+      nivel_coincidencia: 'SIN_COINCIDENCIAS',
+      nivel_confianza: 'ALTO (100%)',
+      orden_analizada: orden.numero_orden || String(ordenId),
+      orden_relacionada: null,
+      motivos_coincidencia: [],
+      diferencias_detectadas: ['Proveedor sin órdenes previas en la ventana temporal de control (7 días)'],
+      datos_justifican: {
+        total_candidatas_evaluadas: 0,
+        proveedor_id: orden.proveedor_id,
+        proveedor_nombre: orden.proveedor_nombre,
+      },
+      explicacion: 'Se evaluaron los registros históricos dentro del período configurado. No se encontraron órdenes previas para este proveedor en la ventana auditada. La orden no presenta indicios de duplicidad.',
+      consecuencias_posibles: 'Ninguna detectada. La orden puede proseguir su ciclo regular de adquisiciones.',
+      recomendacion: 'Continuar con el procedimiento normal de aprobación.',
+      procedimiento_sugerido: 'Avanzar a la fase de autorización según la matriz de niveles correspondiente.',
+      modelo_utilizado: getGeminiConfig().model,
+      candidatos_evaluados: [],
+      estado_analisis: 'COMPLETADO',
+      intentos: intentosActual,
+    };
+    return await guardarAnalisisDuplicadoIA(ordenId, analisisSinCoincidencias);
+  }
+
+  // 5. Hay candidatas -> invocar análisis inteligente asistido por Gemini
   const ordenNuevaPayload = {
     id: orden.id,
     numero_orden: orden.numero_orden,
@@ -777,8 +909,50 @@ export async function ejecutarAnalisisDuplicadoIA(ordenId) {
     })),
   };
 
-  const analisisResultado = await analizarDuplicidadOrdenIA(ordenNuevaPayload, candidatas);
-  return await guardarAnalisisDuplicadoIA(ordenId, analisisResultado);
+  try {
+    const analisisResultado = await analizarDuplicidadOrdenIA(ordenNuevaPayload, candidatas);
+    analisisResultado.intentos = intentosActual;
+    analisisResultado.candidatos_evaluados = candidatas.map(c => ({
+      id: c.id,
+      numero_orden: c.numero_orden,
+      total_crc: c.total_crc,
+    }));
+    analisisResultado.estado_analisis = 'COMPLETADO';
+    analisisResultado.ultimo_error = null;
+
+    return await guardarAnalisisDuplicadoIA(ordenId, analisisResultado);
+  } catch (err) {
+    // Si Gemini falla de forma transitoria (503, 504, 429, timeout), registrar estado REINTENTO_PROGRAMADO
+    console.error(`[Gemini IA Duplicados] Error evaluando orden #${ordenId}:`, err.message);
+
+    await guardarAnalisisDuplicadoIA(ordenId, {
+      resultado: 'PENDIENTE_REVISION',
+      es_posible_duplicado: true,
+      estado_analisis: 'REINTENTO_PROGRAMADO',
+      intentos: intentosActual,
+      ultimo_error: err.message,
+      candidatos_evaluados: candidatas.map(c => ({ id: c.id, numero_orden: c.numero_orden })),
+      nivel_coincidencia: 'REVISION_MANUAL_REQUERIDA',
+      nivel_confianza: 'PENDIENTE_EVALUACION_IA',
+      explicacion: `El servicio de análisis con Google Gemini experimentó una indisponibilidad transitoria (${err.message}). Se ha programado reintento automático mediante n8n.`,
+      recomendacion: 'Esperar reintento automático o verificar manualmente los antecedentes del proveedor.',
+      procedimiento_sugerido: 'El workflow automatizado de n8n reintentará la evaluación en el próximo ciclo.',
+      modelo_utilizado: getGeminiConfig().model,
+    });
+
+    // Mantener la orden protegida contra aprobación prematura mientras se reintenta
+    await query(
+      `UPDATE ordenes_compra
+       SET es_posible_duplicado = 1,
+           estado_revision_duplicado = 'PENDIENTE_REVISION',
+           updated_at = NOW()
+       WHERE id = ? AND estado_revision_duplicado NOT IN ('CONFIRMADO_DUPLICADO', 'DESCARTADO_FALSO_POSITIVO');`,
+      [ordenId]
+    );
+
+    err.isTransient = true;
+    throw err;
+  }
 }
 
 
