@@ -29,13 +29,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.BACKEND_INTERNAL_URL || 'http://localhost:3001' }}/api/integracion/auditoria/incidencia-workflow",
+        "url": "http://localhost:3001/api/integracion/auditoria/incidencia-workflow",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "X-Integration-Key",
-              "value": "={{ $env.N8N_INTEGRATION_API_KEY || '9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e' }}"
+              "value": "9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e"
             },
             {
               "name": "Content-Type",

@@ -160,6 +160,111 @@ export async function listarAlertas({ tipo, severidad, estado, material_id, page
   return { items, total };
 }
 
+export async function obtenerAlertaPorId(id) {
+  const alertRows = await query(
+    `SELECT
+      a.id, a.tipo, a.severidad, a.material_id, m.codigo AS material_codigo, m.nombre AS material_nombre,
+      a.orden_compra_id, oc.numero_orden,
+      a.evento_integracion_id, a.contexto_clave, a.estado, a.titulo, a.mensaje,
+      a.motivo_cierre, a.usuario_resolucion_id, u.nombre AS usuario_resolucion_nombre,
+      a.fecha_generacion, a.fecha_resolucion
+    FROM alertas a
+    LEFT JOIN materiales m ON m.id = a.material_id
+    LEFT JOIN ordenes_compra oc ON oc.id = a.orden_compra_id
+    LEFT JOIN usuarios u ON u.id = a.usuario_resolucion_id
+    WHERE a.id = ?;`,
+    [id]
+  );
+  const alerta = alertRows[0];
+  if (!alerta) {
+    const err = new Error('Alerta no encontrada.');
+    err.statusCode = 404;
+    throw err;
+  }
+  return alerta;
+}
+
+/**
+ * Reevalua el estado de existencias de todos los materiales activos basandose
+ * exclusivamente en el libro mayor de movimientos como fuente de verdad.
+ */
+export async function reevaluarTodasLasAlertas(usuario_id = null) {
+  const materialesConStock = await query(`
+    SELECT
+      m.id, m.codigo, m.nombre, m.unidad_medida, m.stock_minimo, m.punto_reorden,
+      COALESCE(stk.stock_global, 0.00) AS stock_actual
+    FROM materiales m
+    LEFT JOIN (
+      SELECT material_id,
+        COALESCE(SUM(
+          CASE
+            WHEN tipo IN ('ENTRADA', 'AJUSTE_POSITIVO') THEN cantidad
+            WHEN tipo IN ('SALIDA', 'AJUSTE_NEGATIVO') THEN -cantidad
+            ELSE 0
+          END
+        ), 0.00) AS stock_global
+      FROM movimientos
+      GROUP BY material_id
+    ) stk ON stk.material_id = m.id
+    WHERE m.activo = 1;
+  `);
+
+  let generadas = 0;
+  let resueltas = 0;
+  let mantenidas = 0;
+  const resumenEstados = { normal: 0, reorden: 0, critico: 0 };
+  const detalles = [];
+
+  for (const mat of materialesConStock) {
+    const res = await evaluarAlertaStock(mat.id, mat.stock_actual);
+    if (!res) continue;
+
+    if (res.estado === 'NORMAL') {
+      resumenEstados.normal++;
+    } else if (res.estado === 'REORDEN') {
+      resumenEstados.reorden++;
+    } else if (res.estado === 'STOCK_CRITICO') {
+      resumenEstados.critico++;
+    }
+
+    if (res.alerta_id) {
+      generadas++;
+      detalles.push({ material: mat.codigo, accion: 'GENERADA', estado: res.estado, alerta_id: res.alerta_id });
+    } else if (res.alerta) {
+      mantenidas++;
+    }
+  }
+
+  // Contar cuantas alertas activas quedaron finalmente
+  const activasCount = await query(`SELECT COUNT(*) AS total FROM alertas WHERE estado = 'ACTIVA';`);
+  const alertasActivasActuales = activasCount[0]?.total || 0;
+
+  await registrarAuditoria({
+    usuario_id,
+    accion: 'REEVALUACION_GLOBAL_ALERTAS',
+    tipo_operacion: 'AUTOMATIZACION',
+    entidad_afectada: 'alertas',
+    registro_afectado_id: null,
+    motivo: 'Ejecucion manual o programada de reevaluacion de alertas de inventario',
+    datos_nuevos: {
+      materiales_evaluados: materialesConStock.length,
+      alertas_generadas: generadas,
+      alertas_mantenidas: mantenidas,
+      alertas_activas_actuales: alertasActivasActuales,
+      resumenEstados,
+    },
+  });
+
+  return {
+    materiales_evaluados: materialesConStock.length,
+    alertas_generadas: generadas,
+    alertas_mantenidas: mantenidas,
+    alertas_activas_actuales: alertasActivasActuales,
+    resumen_estados: resumenEstados,
+    detalles: detalles.slice(0, 10),
+  };
+}
+
 export async function resolverAlerta(id, { motivo_cierre, usuario_id, nuevo_estado = 'RESUELTA' }) {
   const alertRows = await query('SELECT * FROM alertas WHERE id = ?;', [id]);
   const alerta = alertRows[0];

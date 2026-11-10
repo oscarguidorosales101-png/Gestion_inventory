@@ -41,9 +41,23 @@ router.post(
   ordenController.cancelar
 );
 
-// Revision humana de posible orden duplicada
+// Revision humana de posible orden duplicada (soporta PATCH y POST, /revision-duplicado y /revisar-duplicado)
 router.patch(
   '/:id/revision-duplicado',
+  authenticate,
+  requireRole('ADMINISTRADOR', 'COMPRAS'),
+  validate(revisarDuplicadoSchema),
+  ordenController.revisarDuplicado
+);
+router.post(
+  '/:id/revision-duplicado',
+  authenticate,
+  requireRole('ADMINISTRADOR', 'COMPRAS'),
+  validate(revisarDuplicadoSchema),
+  ordenController.revisarDuplicado
+);
+router.post(
+  '/:id/revisar-duplicado',
   authenticate,
   requireRole('ADMINISTRADOR', 'COMPRAS'),
   validate(revisarDuplicadoSchema),

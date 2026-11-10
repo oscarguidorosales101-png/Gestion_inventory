@@ -6,6 +6,13 @@ const router = Router();
 
 router.get('/', authenticate, alertaController.listar);
 router.post(
+  '/reevaluar',
+  authenticate,
+  requireRole('ADMINISTRADOR', 'ENCARGADO_INVENTARIO', 'COMPRAS'),
+  alertaController.reevaluar
+);
+router.get('/:id', authenticate, alertaController.obtenerPorId);
+router.post(
   '/:id/resolver',
   authenticate,
   requireRole('ADMINISTRADOR', 'ENCARGADO_INVENTARIO', 'COMPRAS'),
@@ -13,4 +20,3 @@ router.post(
 );
 
 export default router;
-

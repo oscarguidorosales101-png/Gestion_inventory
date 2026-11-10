@@ -15,5 +15,9 @@ router.get('/eventos', integracionController.listarEventos);
 router.post('/eventos/:id/reprocesar', integracionController.reprocesarEvento);
 router.post('/evaluar-alerta', integracionController.evaluarAlertaStockAutomatizada);
 
-export default router;
+// Endpoints dedicados para automatizaciones periódicas de n8n
+router.post('/alertas/reevaluar', integracionController.reevaluarAlertas);
+router.get('/auditoria/duplicados-pendientes', integracionController.duplicadosPendientes);
+router.post('/auditoria/incidencia-workflow', integracionController.incidenciaWorkflow);
 
+export default router;

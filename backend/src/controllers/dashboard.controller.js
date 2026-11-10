@@ -45,3 +45,24 @@ export async function getConsultaDashboard(req, res, next) {
     next(err);
   }
 }
+
+export async function getGeminiStatus(req, res, next) {
+  try {
+    const geminiService = await import('../services/gemini.service.js');
+    const estado = await geminiService.verificarConexionGemini();
+    return successResponse(res, estado, 'Estado de conexion con Gemini API');
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAnalisisIA(req, res, next) {
+  try {
+    const geminiService = await import('../services/gemini.service.js');
+    const metricas = await dashboardService.obtenerMetricasDashboard();
+    const analisis = await geminiService.generarAnalisisInventarioIA(metricas);
+    return successResponse(res, analisis, 'Analisis ejecutivo de inventario generado con IA');
+  } catch (err) {
+    next(err);
+  }
+}

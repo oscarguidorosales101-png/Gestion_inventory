@@ -220,5 +220,8 @@ export async function obtenerDesglosePorUbicaciones(material_id, conn = null) {
     ORDER BY u.codigo ASC;
   `;
   const rows = await runner.query(sql, [material_id]);
-  return rows || [];
+  return (rows || []).map((r) => ({
+    ...r,
+    existencia_actual: Number(r.stock_ubicacion || 0),
+  }));
 }

@@ -24,14 +24,21 @@ router.use('/categorias', categoriaRoutes);
 router.use('/proveedores', proveedorRoutes);
 router.use('/ubicaciones', ubicacionRoutes);
 router.use('/inventario', inventarioRoutes);
+
+// Ordenes de compra (soporta ambas convenciones /ordenes y /ordenes-compra)
 router.use('/ordenes', ordenRoutes);
+router.use('/ordenes-compra', ordenRoutes);
+
 router.use('/recepciones', recepcionRoutes);
 router.use('/movimientos', movimientoRoutes);
 router.use('/alertas', alertaRoutes);
 router.use('/reglas', reglaRoutes);
 router.use('/usuarios', usuarioRoutes);
 router.use('/auditoria', auditoriaRoutes);
+
+// Integraciones y Outbox (soporta /integracion, /integraciones y /outbox)
 router.use('/integracion', integracionRoutes);
+router.use('/integraciones', integracionRoutes);
+router.use('/outbox', integracionRoutes);
 
 export default router;
-
