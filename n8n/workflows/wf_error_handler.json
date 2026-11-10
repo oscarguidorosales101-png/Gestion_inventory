@@ -1,0 +1,78 @@
+{
+  "name": "Gestion_Inventory - Global Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const errData = $input.item.json;\nreturn {\n  workflow_id: errData.workflow?.id,\n  workflow_name: errData.workflow?.name,\n  execution_id: errData.execution?.id,\n  error_message: errData.execution?.error?.message || 'Error desconocido en workflow',\n  error_stack: errData.execution?.error?.stack || null,\n  last_node_executed: errData.execution?.lastNodeExecuted,\n  occurred_at: new Date().toISOString()\n};"
+      },
+      "id": "node-parse-error",
+      "name": "Estructurar Metadatos de Incidencia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_INTERNAL_URL || 'http://localhost:3001' }}/api/integracion/auditoria/incidencia-workflow",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Integration-Key",
+              "value": "={{ $env.N8N_INTEGRATION_API_KEY || '9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"tipo\": \"ERROR_WORKFLOW_N8N\",\n  \"detalles\": {\n    \"workflow_name\": \"{{ $json.workflow_name }}\",\n    \"execution_id\": \"{{ $json.execution_id }}\",\n    \"error_message\": \"{{ $json.error_message }}\",\n    \"last_node\": \"{{ $json.last_node_executed }}\"\n  }\n}"
+      },
+      "id": "node-registrar-incidencia",
+      "name": "Registrar Incidencia en Backend (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "node-error-trigger": {
+      "main": [
+        [
+          {
+            "node": "node-parse-error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node-parse-error": {
+      "main": [
+        [
+          {
+            "node": "node-registrar-incidencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

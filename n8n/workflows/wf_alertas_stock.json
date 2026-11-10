@@ -1,0 +1,84 @@
+{
+  "name": "Gestion_Inventory - Sincronizacion de Alertas de Stock",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-alertas",
+      "name": "Schedule Trigger (Cada 15 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_INTERNAL_URL || 'http://localhost:3001' }}/api/integracion/alertas/reevaluar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Integration-Key",
+              "value": "={{ $env.N8N_INTEGRATION_API_KEY || '9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "node-reevaluar-alertas",
+      "name": "Reevaluar Alertas Stock (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.item.json;\nconst totalEvaluados = res.data?.materiales_evaluados || 0;\nconst activas = res.data?.alertas_activas_actuales || 0;\nreturn {\n  timestamp: new Date().toISOString(),\n  totalEvaluados,\n  activas,\n  estado_ejecucion: 'SUCCESS',\n  resumen: `Sincronizacion completada: ${totalEvaluados} materiales evaluados, ${activas} alertas activas.`\n};"
+      },
+      "id": "node-resumen-alertas",
+      "name": "Formatear Resumen Alertas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "node-schedule-alertas": {
+      "main": [
+        [
+          {
+            "node": "node-reevaluar-alertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node-reevaluar-alertas": {
+      "main": [
+        [
+          {
+            "node": "node-resumen-alertas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+

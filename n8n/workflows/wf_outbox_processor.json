@@ -1,0 +1,216 @@
+{
+  "name": "Gestion_Inventory - Outbox Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "* * * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-outbox",
+      "name": "Schedule Trigger (Cada 1 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_INTERNAL_URL || 'http://localhost:3001' }}/api/integracion/eventos/reclamar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Integration-Key",
+              "value": "={{ $env.N8N_INTEGRATION_API_KEY || '9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"batchSize\": 20,\n  \"workerId\": \"n8n-processor-01\"\n}"
+      },
+      "id": "node-reclamar-eventos",
+      "name": "Reclamar Lote Outbox (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data.eventos",
+        "options": {}
+      },
+      "id": "node-split-eventos",
+      "name": "Desglosar Eventos Reclamados",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.tipo_evento }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "MOVIMIENTO_REGISTRADO"
+            },
+            {
+              "value2": "ORDEN_COMPRA_CREADA"
+            },
+            {
+              "value2": "ORDEN_COMPRA_ESTADO"
+            },
+            {
+              "value2": "RECEPCION_ORDEN_COMPRA"
+            },
+            {
+              "value2": "ALERTA_STOCK_ACTIVADA"
+            }
+          ]
+        }
+      },
+      "id": "node-switch-tipo",
+      "name": "Enrutar por Tipo de Evento",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nivel C Idempotencia: Clave determinista para efectos externos\nconst evento = $input.item.json;\nconst idempotencyKey = `${evento.evento_uuid}:NOTIFICACION_EXTERNA`;\nreturn {\n  ...evento,\n  idempotency_key: idempotencyKey,\n  procesado_en: new Date().toISOString(),\n  estado_procesamiento: 'COMPLETADO'\n};"
+      },
+      "id": "node-procesar-payload",
+      "name": "Transformar y Asignar Idempotency-Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_INTERNAL_URL || 'http://localhost:3001' }}/api/integracion/eventos/{{ $json.id }}/completar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Integration-Key",
+              "value": "={{ $env.N8N_INTEGRATION_API_KEY || '9dd014ab00baa9bc65010e45e97813bf73645d329d988939faaf01c1d73a949e' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"claim_token\": \"{{ $json.claim_token }}\",\n  \"resultado\": {\n    \"status\": \"OK\",\n    \"worker\": \"n8n-processor-01\",\n    \"idempotency_key\": \"{{ $json.idempotency_key }}\"\n  }\n}"
+      },
+      "id": "node-completar-evento",
+      "name": "Completar Evento Outbox (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "node-schedule-outbox": {
+      "main": [
+        [
+          {
+            "node": "node-reclamar-eventos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node-reclamar-eventos": {
+      "main": [
+        [
+          {
+            "node": "node-split-eventos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node-split-eventos": {
+      "main": [
+        [
+          {
+            "node": "node-switch-tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node-switch-tipo": {
+      "main": [
+        [
+          {
+            "node": "node-procesar-payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "node-procesar-payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "node-procesar-payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "node-procesar-payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "node-procesar-payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node-procesar-payload": {
+      "main": [
+        [
+          {
+            "node": "node-completar-evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
+
