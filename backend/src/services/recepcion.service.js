@@ -1,4 +1,4 @@
-import { withTransaction } from '../config/db.js';
+import { withTransaction, query } from '../config/db.js';
 import { obtenerStockPorUbicacion, obtenerStockGlobal } from './inventario.service.js';
 import { evaluarAlertaStock } from './alerta.service.js';
 import { registrarAuditoria } from './auditoria.service.js';
@@ -191,5 +191,60 @@ export async function registrarRecepcionOrden(orden_id, { items, referencia, obs
 
     return await obtenerOrdenPorId(orden_id, conn);
   });
+}
+
+/**
+ * Consulta el historial de recepciones asentadas por orden de compra.
+ */
+export async function listarRecepciones({ orden_id, proveedor_id, material_id, page = 1, limit = 20 } = {}) {
+  const conditions = ["m.tipo = 'ENTRADA'", "m.orden_compra_id IS NOT NULL"];
+  const params = [];
+
+  if (orden_id) {
+    conditions.push('m.orden_compra_id = ?');
+    params.push(Number(orden_id));
+  }
+  if (proveedor_id) {
+    conditions.push('oc.proveedor_id = ?');
+    params.push(Number(proveedor_id));
+  }
+  if (material_id) {
+    conditions.push('m.material_id = ?');
+    params.push(Number(material_id));
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+  const offset = (Number(page) - 1) * Number(limit);
+
+  const sql = `
+    SELECT
+      m.id, m.fecha_movimiento, m.fecha_movimiento AS created_at, m.cantidad, m.cantidad AS cantidad_recibida,
+      m.motivo, m.referencia,
+      mat.id AS material_id, mat.codigo AS material_sku, mat.nombre AS material_nombre, mat.unidad_medida,
+      oc.id AS orden_id, oc.numero_orden,
+      p.id AS proveedor_id, p.razon_social AS proveedor_nombre,
+      ud.id AS ubicacion_destino_id, ud.nombre AS ubicacion_destino_nombre,
+      u.id AS usuario_id, u.nombre AS usuario_receptor_nombre
+    FROM movimientos m
+    JOIN materiales mat ON mat.id = m.material_id
+    JOIN ordenes_compra oc ON oc.id = m.orden_compra_id
+    JOIN proveedores p ON p.id = oc.proveedor_id
+    LEFT JOIN ubicaciones ud ON ud.id = m.ubicacion_destino_id
+    LEFT JOIN usuarios u ON u.id = m.usuario_id
+    ${whereClause}
+    ORDER BY m.fecha_movimiento DESC, m.id DESC
+    LIMIT ? OFFSET ?;
+  `;
+
+  const rows = await query(sql, [...params, Number(limit), Number(offset)]);
+  const countRes = await query(`
+    SELECT COUNT(*) AS total
+    FROM movimientos m
+    JOIN ordenes_compra oc ON oc.id = m.orden_compra_id
+    ${whereClause};
+  `, params);
+
+  const total = countRes[0] ? countRes[0].total : 0;
+  return { items: rows || [], total };
 }
 

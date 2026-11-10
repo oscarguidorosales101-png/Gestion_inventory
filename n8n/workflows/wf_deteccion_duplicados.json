@@ -1,5 +1,6 @@
 {
   "name": "Gestion_Inventory - Auditoria y Deteccion de Duplicados",
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -16,7 +17,10 @@
       "name": "Schedule Trigger (Cada 30 min)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -36,7 +40,10 @@
       "name": "Consultar Duplicados Pendientes (GET)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 300]
+      "position": [
+        460,
+        300
+      ]
     },
     {
       "parameters": {
@@ -54,7 +61,10 @@
       "name": "Hay Casos Pendientes?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [700, 300]
+      "position": [
+        700,
+        300
+      ]
     },
     {
       "parameters": {
@@ -64,37 +74,40 @@
       "name": "Consolidar Informe Duplicados",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [940, 240]
+      "position": [
+        940,
+        240
+      ]
     }
   ],
   "connections": {
-    "node-schedule-dup": {
+    "Schedule Trigger (Cada 30 min)": {
       "main": [
         [
           {
-            "node": "node-consultar-duplicados",
+            "node": "Consultar Duplicados Pendientes (GET)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-consultar-duplicados": {
+    "Consultar Duplicados Pendientes (GET)": {
       "main": [
         [
           {
-            "node": "node-if-hay-duplicados",
+            "node": "Hay Casos Pendientes?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-if-hay-duplicados": {
+    "Hay Casos Pendientes?": {
       "main": [
         [
           {
-            "node": "node-formato-alerta-dup",
+            "node": "Consolidar Informe Duplicados",
             "type": "main",
             "index": 0
           }
@@ -106,4 +119,3 @@
     "executionOrder": "v1"
   }
 }
-

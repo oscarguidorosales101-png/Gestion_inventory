@@ -148,6 +148,20 @@ export async function obtenerMetricasDashboard({ fecha_desde, fecha_hasta, categ
   `);
 
   return {
+    totalMateriales,
+    valorTotalInventarioCrc: Number(valorInventarioCrc.toFixed(2)),
+    alertasActivas: alertStats.total_activas,
+    ordenesPendientesAprobacion: ocStats.pendientes_aprobacion,
+    distribucionStockPorEstado: {
+      normal: normalCount,
+      reorden: reordenCount,
+      critico: stockCriticosCount,
+    },
+    stockPorCategoria: categoriasDistribucion.map((c) => ({
+      categoria: c.nombre,
+      totalStock: Number(c.total_materiales),
+      valorCrc: Number(c.valor_categoria_crc),
+    })),
     totales: {
       totalMateriales,
       stockGlobalTotal: Number(stockGlobalTotal.toFixed(2)),
@@ -173,6 +187,188 @@ export async function obtenerMetricasDashboard({ fecha_desde, fecha_hasta, categ
     actividadReciente,
     categoriasDistribucion,
     ubicacionesDistribucion,
+  };
+}
+
+/**
+ * Dashboard exclusivo para ADMINISTRADOR.
+ * Indicadores generales, usuarios, roles, auditoria, estado outbox y reglas.
+ */
+export async function obtenerDashboardAdmin() {
+  const metricasBase = await obtenerMetricasDashboard();
+
+  const [usrStats] = await query(`
+    SELECT
+      COUNT(*) AS total_usuarios,
+      COUNT(CASE WHEN activo = 1 THEN 1 END) AS usuarios_activos,
+      COUNT(CASE WHEN rol = 'ADMINISTRADOR' THEN 1 END) AS total_admins,
+      COUNT(CASE WHEN rol = 'ENCARGADO_INVENTARIO' THEN 1 END) AS total_inventario,
+      COUNT(CASE WHEN rol = 'COMPRAS' THEN 1 END) AS total_compras,
+      COUNT(CASE WHEN rol = 'CONSULTA' THEN 1 END) AS total_consulta
+    FROM usuarios;
+  `);
+
+  const [outboxStats] = await query(`
+    SELECT
+      COUNT(CASE WHEN estado = 'PENDIENTE' THEN 1 END) AS eventos_pendientes,
+      COUNT(CASE WHEN estado = 'PROCESSING' THEN 1 END) AS eventos_en_proceso,
+      COUNT(CASE WHEN estado = 'PROCESADO' THEN 1 END) AS eventos_procesados,
+      COUNT(CASE WHEN estado = 'FAILED' THEN 1 END) AS eventos_fallidos
+    FROM eventos_integracion;
+  `);
+
+  const [reglasStats] = await query('SELECT COUNT(*) AS total_reglas FROM configuracion_reglas;');
+
+  return {
+    ...metricasBase,
+    usuarios: usrStats,
+    outbox: outboxStats,
+    totalReglas: reglasStats ? reglasStats.total_reglas : 0,
+  };
+}
+
+/**
+ * Dashboard exclusivo para ENCARGADO_INVENTARIO.
+ * Existencias globales, bodegas, stock critico, proximo a reorden, recepciones y movimientos.
+ */
+export async function obtenerDashboardInventario() {
+  const metricasBase = await obtenerMetricasDashboard();
+
+  // Materiales en estado critico o reorden
+  const itemsCriticos = await query(`
+    SELECT
+      m.id, m.codigo, m.nombre, m.unidad_medida, m.stock_minimo, m.punto_reorden,
+      c.nombre AS categoria_nombre,
+      COALESCE(stk.stock_global, 0.00) AS stock_actual,
+      CASE
+        WHEN COALESCE(stk.stock_global, 0.00) <= m.stock_minimo THEN 'STOCK_CRITICO'
+        ELSE 'REORDEN'
+      END AS estado_alerta
+    FROM materiales m
+    JOIN categorias c ON c.id = m.categoria_id
+    LEFT JOIN (
+      SELECT material_id,
+        COALESCE(SUM(
+          CASE
+            WHEN tipo IN ('ENTRADA', 'AJUSTE_POSITIVO') THEN cantidad
+            WHEN tipo IN ('SALIDA', 'AJUSTE_NEGATIVO') THEN -cantidad
+            ELSE 0
+          END
+        ), 0.00) AS stock_global
+      FROM movimientos
+      GROUP BY material_id
+    ) stk ON stk.material_id = m.id
+    WHERE m.activo = 1 AND COALESCE(stk.stock_global, 0.00) <= m.punto_reorden
+    ORDER BY COALESCE(stk.stock_global, 0.00) ASC
+    LIMIT 10;
+  `);
+
+  // Ultimas 5 recepciones fisicas realizadas
+  const recepcionesRecientes = await query(`
+    SELECT
+      m.id, m.fecha_movimiento, m.cantidad,
+      mat.codigo AS material_sku, mat.nombre AS material_nombre, mat.unidad_medida,
+      oc.numero_orden, p.razon_social AS proveedor_nombre,
+      ud.nombre AS bodega_destino, u.nombre AS receptor_nombre
+    FROM movimientos m
+    JOIN materiales mat ON mat.id = m.material_id
+    JOIN ordenes_compra oc ON oc.id = m.orden_compra_id
+    JOIN proveedores p ON p.id = oc.proveedor_id
+    LEFT JOIN ubicaciones ud ON ud.id = m.ubicacion_destino_id
+    LEFT JOIN usuarios u ON u.id = m.usuario_id
+    WHERE m.tipo = 'ENTRADA' AND m.orden_compra_id IS NOT NULL
+    ORDER BY m.fecha_movimiento DESC, m.id DESC
+    LIMIT 5;
+  `);
+
+  return {
+    ...metricasBase,
+    itemsCriticos,
+    recepcionesRecientes,
+  };
+}
+
+/**
+ * Dashboard exclusivo para COMPRAS.
+ * Ordenes de compra, proveedores, duplicados por revisar, seguimiento presupuestario.
+ */
+export async function obtenerDashboardCompras() {
+  const metricasBase = await obtenerMetricasDashboard();
+
+  // Ordenes con posible duplicado pendientes de revision
+  const duplicadosPendientes = await query(`
+    SELECT
+      oc.id, oc.numero_orden, oc.proveedor_id, oc.fecha_emision, oc.total_crc,
+      oc.es_posible_duplicado, oc.estado_revision_duplicado, oc.orden_similar_id,
+      p.razon_social AS proveedor_nombre,
+      u.nombre AS creador_nombre
+    FROM ordenes_compra oc
+    JOIN proveedores p ON p.id = oc.proveedor_id
+    LEFT JOIN usuarios u ON u.id = oc.usuario_creador_id
+    WHERE oc.es_posible_duplicado = 1 AND oc.estado_revision_duplicado = 'PENDIENTE_REVISION'
+    ORDER BY oc.id DESC;
+  `);
+
+  // Ultimas 8 ordenes emitidas
+  const ultimasOrdenes = await query(`
+    SELECT
+      oc.id, oc.numero_orden, oc.fecha_emision, oc.fecha_entrega_estimada,
+      oc.estado, oc.nivel_aprobacion_requerido, oc.total_crc,
+      p.razon_social AS proveedor_nombre,
+      u.nombre AS creador_nombre,
+      ap.nombre AS aprobador_nombre
+    FROM ordenes_compra oc
+    JOIN proveedores p ON p.id = oc.proveedor_id
+    LEFT JOIN usuarios u ON u.id = oc.usuario_creador_id
+    LEFT JOIN usuarios ap ON ap.id = oc.usuario_aprobador_id
+    ORDER BY oc.id DESC
+    LIMIT 8;
+  `);
+
+  // Top proveedores por volumen de compra
+  const topProveedores = await query(`
+    SELECT
+      p.id, p.codigo, p.razon_social AS nombre_comercial,
+      COUNT(oc.id) AS total_ordenes,
+      COALESCE(SUM(oc.total_crc), 0.00) AS total_facturado_crc
+    FROM proveedores p
+    LEFT JOIN ordenes_compra oc ON oc.proveedor_id = p.id AND oc.estado NOT IN ('CANCELADA', 'RECHAZADA')
+    WHERE p.activo = 1
+    GROUP BY p.id, p.codigo, p.razon_social
+    ORDER BY total_facturado_crc DESC
+    LIMIT 5;
+  `);
+
+  return {
+    ...metricasBase,
+    duplicadosPendientes,
+    ultimasOrdenes,
+    topProveedores,
+  };
+}
+
+/**
+ * Dashboard exclusivo para CONSULTA / AUDITOR.
+ * Vista de lectura completa de inventario, auditoria y cumplimiento.
+ */
+export async function obtenerDashboardConsulta() {
+  const metricasBase = await obtenerMetricasDashboard();
+
+  // Historial de auditoria de movimientos e incidentes
+  const auditoriaReciente = await query(`
+    SELECT
+      a.id, a.accion, a.tipo_operacion, a.entidad_afectada, a.registro_afectado_id,
+      a.motivo, a.fecha_hora,
+      u.nombre AS usuario_nombre, u.rol AS usuario_rol
+    FROM auditoria a
+    LEFT JOIN usuarios u ON u.id = a.usuario_id
+    ORDER BY a.fecha_hora DESC, a.id DESC
+    LIMIT 12;
+  `);
+
+  return {
+    ...metricasBase,
+    auditoriaReciente,
   };
 }
 

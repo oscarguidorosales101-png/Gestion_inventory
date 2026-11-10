@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import apiRoutes from './routes/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { env } from './config/env.js';
+import { pool } from './config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,15 +40,40 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Endpoint de verificacion de salud
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    sistema: 'Gestion_inventory API',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-  });
-});
+// Endpoint de verificacion de salud integral (Backend + MySQL)
+async function healthCheckHandler(req, res) {
+  try {
+    const [dbResult] = await pool.query('SELECT 1 AS alive;');
+    const isDbAlive = dbResult && dbResult.length > 0;
+
+    return res.status(200).json({
+      status: 'ok',
+      sistema: 'Gestion_inventory API',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      database: {
+        status: isDbAlive ? 'connected' : 'error',
+        host: env.DB_HOST,
+        port: env.DB_PORT,
+        database: env.DB_NAME,
+      },
+    });
+  } catch (err) {
+    return res.status(503).json({
+      status: 'degraded',
+      sistema: 'Gestion_inventory API',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      database: {
+        status: 'disconnected',
+        error: err.message,
+      },
+    });
+  }
+}
+
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
 
 // Rutas de la API REST
 app.use('/api', apiRoutes);

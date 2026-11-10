@@ -1,5 +1,6 @@
 {
   "name": "Gestion_Inventory - Sincronizacion de Alertas de Stock",
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -16,7 +17,10 @@
       "name": "Schedule Trigger (Cada 15 min)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -40,7 +44,10 @@
       "name": "Reevaluar Alertas Stock (POST)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 300]
+      "position": [
+        460,
+        300
+      ]
     },
     {
       "parameters": {
@@ -50,26 +57,29 @@
       "name": "Formatear Resumen Alertas",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [700, 300]
+      "position": [
+        700,
+        300
+      ]
     }
   ],
   "connections": {
-    "node-schedule-alertas": {
+    "Schedule Trigger (Cada 15 min)": {
       "main": [
         [
           {
-            "node": "node-reevaluar-alertas",
+            "node": "Reevaluar Alertas Stock (POST)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-reevaluar-alertas": {
+    "Reevaluar Alertas Stock (POST)": {
       "main": [
         [
           {
-            "node": "node-resumen-alertas",
+            "node": "Formatear Resumen Alertas",
             "type": "main",
             "index": 0
           }
@@ -81,4 +91,3 @@
     "executionOrder": "v1"
   }
 }
-

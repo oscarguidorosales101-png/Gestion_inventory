@@ -66,3 +66,8 @@ export function requireRole(...rolesPermitidos) {
   };
 }
 
+export function checkRole(roles) {
+  const allowed = Array.isArray(roles) ? roles : [roles];
+  return requireRole(...allowed);
+}
+

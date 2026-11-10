@@ -1,5 +1,6 @@
 {
   "name": "Gestion_Inventory - Global Error Handler",
+  "active": true,
   "nodes": [
     {
       "parameters": {},
@@ -7,7 +8,10 @@
       "name": "Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -17,7 +21,10 @@
       "name": "Estructurar Metadatos de Incidencia",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 300]
+      "position": [
+        460,
+        300
+      ]
     },
     {
       "parameters": {
@@ -44,26 +51,29 @@
       "name": "Registrar Incidencia en Backend (POST)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [700, 300]
+      "position": [
+        700,
+        300
+      ]
     }
   ],
   "connections": {
-    "node-error-trigger": {
+    "Error Trigger": {
       "main": [
         [
           {
-            "node": "node-parse-error",
+            "node": "Estructurar Metadatos de Incidencia",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-parse-error": {
+    "Estructurar Metadatos de Incidencia": {
       "main": [
         [
           {
-            "node": "node-registrar-incidencia",
+            "node": "Registrar Incidencia en Backend (POST)",
             "type": "main",
             "index": 0
           }
@@ -75,4 +85,3 @@
     "executionOrder": "v1"
   }
 }
-

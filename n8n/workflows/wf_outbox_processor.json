@@ -1,5 +1,6 @@
 {
   "name": "Gestion_Inventory - Outbox Processor",
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -16,7 +17,10 @@
       "name": "Schedule Trigger (Cada 1 min)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300]
+      "position": [
+        200,
+        300
+      ]
     },
     {
       "parameters": {
@@ -43,7 +47,10 @@
       "name": "Reclamar Lote Outbox (POST)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [420, 300]
+      "position": [
+        420,
+        300
+      ]
     },
     {
       "parameters": {
@@ -54,7 +61,10 @@
       "name": "Desglosar Eventos Reclamados",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [640, 300]
+      "position": [
+        640,
+        300
+      ]
     },
     {
       "parameters": {
@@ -84,7 +94,10 @@
       "name": "Enrutar por Tipo de Evento",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [860, 300]
+      "position": [
+        860,
+        300
+      ]
     },
     {
       "parameters": {
@@ -94,7 +107,10 @@
       "name": "Transformar y Asignar Idempotency-Key",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1100, 300]
+      "position": [
+        1100,
+        300
+      ]
     },
     {
       "parameters": {
@@ -121,87 +137,90 @@
       "name": "Completar Evento Outbox (POST)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1340, 300]
+      "position": [
+        1340,
+        300
+      ]
     }
   ],
   "connections": {
-    "node-schedule-outbox": {
+    "Schedule Trigger (Cada 1 min)": {
       "main": [
         [
           {
-            "node": "node-reclamar-eventos",
+            "node": "Reclamar Lote Outbox (POST)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-reclamar-eventos": {
+    "Reclamar Lote Outbox (POST)": {
       "main": [
         [
           {
-            "node": "node-split-eventos",
+            "node": "Desglosar Eventos Reclamados",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-split-eventos": {
+    "Desglosar Eventos Reclamados": {
       "main": [
         [
           {
-            "node": "node-switch-tipo",
+            "node": "Enrutar por Tipo de Evento",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-switch-tipo": {
+    "Enrutar por Tipo de Evento": {
       "main": [
         [
           {
-            "node": "node-procesar-payload",
+            "node": "Transformar y Asignar Idempotency-Key",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "node-procesar-payload",
+            "node": "Transformar y Asignar Idempotency-Key",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "node-procesar-payload",
+            "node": "Transformar y Asignar Idempotency-Key",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "node-procesar-payload",
+            "node": "Transformar y Asignar Idempotency-Key",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "node-procesar-payload",
+            "node": "Transformar y Asignar Idempotency-Key",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "node-procesar-payload": {
+    "Transformar y Asignar Idempotency-Key": {
       "main": [
         [
           {
-            "node": "node-completar-evento",
+            "node": "Completar Evento Outbox (POST)",
             "type": "main",
             "index": 0
           }
@@ -213,4 +232,3 @@
     "executionOrder": "v1"
   }
 }
-
