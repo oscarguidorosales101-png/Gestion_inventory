@@ -12,7 +12,8 @@ export const StockPorUbicacionModal = ({ material, onClose }) => {
       try {
         setLoading(true);
         const res = await api.inventario.getDesgloseUbicaciones(material.id);
-        setUbicaciones(res.data || []);
+        const dataList = Array.isArray(res.data) ? res.data : (res.data?.ubicaciones || []);
+        setUbicaciones(dataList);
       } catch (err) {
         console.error('Error al cargar desglose por ubicación:', err);
       } finally {
@@ -41,7 +42,7 @@ export const StockPorUbicacionModal = ({ material, onClose }) => {
           {loading ? (
             <div style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
               <Activity size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
-              <p>Consultando saldo por bodega en MySQL...</p>
+              <p>Consultando saldo por bodega...</p>
             </div>
           ) : ubicaciones.length > 0 ? (
             <table className="data-table">
@@ -60,7 +61,7 @@ export const StockPorUbicacionModal = ({ material, onClose }) => {
                     <td><span className="badge badge-gray">{ub.tipo}</span></td>
                     <td>{ub.responsable}</td>
                     <td style={{ fontWeight: 700, color: '#15803D' }}>
-                      {formatNumero(ub.stock_actual)} {material.unidad_medida}
+                      {formatNumero(ub.stock_ubicacion ?? ub.existencia_actual ?? ub.stock_actual ?? 0)} {material.unidad_medida}
                     </td>
                   </tr>
                 ))}

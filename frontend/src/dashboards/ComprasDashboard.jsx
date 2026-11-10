@@ -113,7 +113,7 @@ export const ComprasDashboard = ({ onNavigate }) => {
           <div style={{ flex: 1 }}>
             <strong>Atención: Se han detectado {data.duplicadosPendientes.length} órdenes con posible duplicidad.</strong>
             <div>
-              El motor n8n identificó coincidencias de proveedor, monto y líneas en una ventana de 7 días. Requieren revisión humana antes de permitir aprobación.
+              El sistema de control preventivo identificó coincidencias de proveedor, monto y líneas en una ventana de 7 días. Requieren revisión humana antes de permitir aprobación.
             </div>
           </div>
         </div>

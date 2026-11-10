@@ -78,7 +78,7 @@ export const AuditoriaList = () => {
               {loading ? (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
-                    Consultando bitácora inmutable en MySQL...
+                    Consultando bitácora inmutable de auditoría...
                   </td>
                 </tr>
               ) : logs.length > 0 ? (
@@ -86,7 +86,7 @@ export const AuditoriaList = () => {
                   <tr key={log.id}>
                     <td style={{ fontWeight: 600 }}>#{log.id}</td>
                     <td>{formatFecha(log.created_at, true)}</td>
-                    <td style={{ fontWeight: 600 }}>{log.usuario_nombre || 'Sistema / n8n'}</td>
+                    <td style={{ fontWeight: 600 }}>{log.usuario_nombre || 'Sistema'}</td>
                     <td><span className="badge badge-gray">{log.accion}</span></td>
                     <td>{log.tipo_operacion}</td>
                     <td>{log.entidad_afectada} (ID #{log.registro_afectado_id})</td>
@@ -98,7 +98,7 @@ export const AuditoriaList = () => {
                         <button
                           className="btn btn-secondary btn-sm"
                           onClick={() => setSelectedPayload({ title: `Auditoría #${log.id} — ${log.accion}`, data: log.payload })}
-                          title="Ver payload JSON capturado"
+                          title="Ver detalle del registro"
                         >
                           <FileJson size={13} />
                         </button>

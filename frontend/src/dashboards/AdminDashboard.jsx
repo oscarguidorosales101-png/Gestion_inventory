@@ -79,7 +79,7 @@ export const AdminDashboard = ({ onNavigate }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0F172A' }}>Tablero de Control del Administrador</h2>
-          <p style={{ fontSize: '0.85rem', color: '#64748B' }}>Visión global del sistema, seguridad, reglas, outbox y auditoría general.</p>
+          <p style={{ fontSize: '0.85rem', color: '#64748B' }}>Visión global del sistema, seguridad, reglas, sincronización de eventos y auditoría general.</p>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={cargarDatos}>
           <RefreshCw size={14} />
@@ -138,12 +138,12 @@ export const AdminDashboard = ({ onNavigate }) => {
 
       {/* Paneles de Integración y Reglas */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-        {/* Estado del Outbox & Integraciones */}
+        {/* Estado de Sincronización e Integraciones */}
         <div className="card-table" style={{ margin: 0 }}>
           <div className="card-table-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Cpu size={18} color="#15803D" />
-              <div className="card-table-title">Cola de Eventos Outbox (n8n)</div>
+              <div className="card-table-title">Eventos de Sincronización e Integración</div>
             </div>
           </div>
           <div style={{ padding: '20px' }}>
@@ -168,7 +168,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               </div>
             </div>
             <div style={{ marginTop: '16px', fontSize: '0.8rem', color: '#64748B' }}>
-              Las automatizaciones n8n procesan eventos asíncronos cada 60s con control estricto de concurrencia y claim tokens.
+              Los procesos automatizados sincronizan eventos periódicamente garantizando la consistencia y trazabilidad de los datos.
             </div>
           </div>
         </div>
@@ -238,7 +238,7 @@ export const AdminDashboard = ({ onNavigate }) => {
                 data.auditoriaReciente.map((log) => (
                   <tr key={log.id}>
                     <td>{formatFecha(log.created_at, true)}</td>
-                    <td style={{ fontWeight: 600 }}>{log.usuario_nombre || 'Sistema / n8n'}</td>
+                    <td style={{ fontWeight: 600 }}>{log.usuario_nombre || 'Sistema'}</td>
                     <td><span className="badge badge-gray">{log.accion}</span></td>
                     <td>{log.tipo_operacion}</td>
                     <td>{log.entidad_afectada} (ID #{log.registro_afectado_id})</td>

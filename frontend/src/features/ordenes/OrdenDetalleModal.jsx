@@ -39,7 +39,7 @@ export const OrdenDetalleModal = ({ ordenId, onClose }) => {
           {loading ? (
             <div style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
               <Activity size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
-              <p>Cargando información de orden desde MySQL...</p>
+              <p>Cargando información de la orden de compra...</p>
             </div>
           ) : orden ? (
             <div>

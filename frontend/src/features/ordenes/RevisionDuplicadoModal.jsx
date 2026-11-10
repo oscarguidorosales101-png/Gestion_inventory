@@ -48,7 +48,7 @@ export const RevisionDuplicadoModal = ({ orden, onClose, onSuccess }) => {
           )}
 
           <div className="alert-banner alert-warning">
-            El motor de auditoría preventiva n8n ha marcado esta orden debido a que coincide en proveedor, fecha o monto con la orden #{orden.orden_similar_id || 'existente'}.
+            El motor de auditoría preventiva ha marcado esta orden debido a que coincide en proveedor, fecha o monto con la orden #{orden.orden_similar_id || 'existente'}.
           </div>
 
           <div style={{ marginBottom: '14px', fontSize: '0.85rem' }}>

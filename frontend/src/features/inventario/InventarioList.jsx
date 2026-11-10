@@ -116,7 +116,7 @@ export const InventarioList = () => {
               {loading ? (
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
-                    Cargando existencias desde MySQL...
+                    Cargando existencias de inventario...
                   </td>
                 </tr>
               ) : items.length > 0 ? (
